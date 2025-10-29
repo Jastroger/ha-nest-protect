@@ -1,77 +1,60 @@
-"""Binary sensor platform for Nest Protect (Smoke/CO)."""
+"""Binary sensor platform for legacy Nest Protect integration."""
 
 from __future__ import annotations
+
 from homeassistant.components.binary_sensor import BinarySensorEntity
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.aiohttp_client import async_get_clientsession
-from homeassistant.core import HomeAssistant
 
-from .const import DOMAIN
-from .sdm_client import sdm_execute_command, sdm_get_device
+from . import HomeAssistantNestProtectData
+from .const import DOMAIN, LOGGER
 
 
-async def async_setup_entry(hass: HomeAssistant, entry, async_add_entities: AddEntitiesCallback):
-    """Set up binary sensors."""
-    data = hass.data[DOMAIN][entry.entry_id]
-    devices = data.get("sdm_devices", {}).get("devices", [])
+async def async_setup_entry(hass, entry, async_add_entities: AddEntitiesCallback):
+    """Set up binary sensors for the entry."""
+    data: HomeAssistantNestProtectData = hass.data[DOMAIN][entry.entry_id]
+    devices = data.devices or {}
     entities = []
-    for dev in devices:
-        traits = dev.get("traits", {})
-        if any(k.endswith("SmokeAlarm") or k.endswith("CarbonMonoxide") for k in traits):
-            entities.append(NestProtectBinarySensor(hass, entry.entry_id, dev))
+
+    # devices is expected to be a mapping or list depending on your client implementation
+    if isinstance(devices, dict):
+        devs = devices.get("devices", []) or []
+    else:
+        devs = devices or []
+
+    for dev in devs:
+        traits = dev.get("traits", {}) if isinstance(dev, dict) else {}
+        if any(k.endswith("SmokeAlarm") or k.endswith("CarbonMonoxide") for k in traits.keys()):
+            entities.append(NestProtectBinarySensor(data, dev))
+
+    if not entities:
+        LOGGER.debug("No Nest Protect smoke/CO devices found for entry %s", entry.entry_id)
+
     async_add_entities(entities)
 
 
 class NestProtectBinarySensor(BinarySensorEntity):
-    """Representation of a Nest Protect smoke/CO alarm."""
+    """Representation of a Nest Protect smoke/CO alarm (legacy)."""
 
-    def __init__(self, hass: HomeAssistant, entry_id: str, device: dict):
-        self.hass = hass
-        self._entry_id = entry_id
+    def __init__(self, integration_data: HomeAssistantNestProtectData, device: dict):
+        self._integration_data = integration_data
         self._device = device
-        self._device_name = device.get("name")
-        self._attr_name = device.get("customName") or device.get("name")
-        self._attr_unique_id = self._device_name
+        self._name = device.get("customName") or device.get("name")
+        self._unique_id = device.get("name")
+
+    @property
+    def unique_id(self) -> str:
+        return self._unique_id
+
+    @property
+    def name(self) -> str:
+        return self._name
 
     @property
     def is_on(self) -> bool:
-        """Return true if alarm is active."""
         traits = self._device.get("traits", {})
-        for trait_key, trait_value in traits.items():
-            if trait_key.endswith("SmokeAlarm"):
-                state = trait_value.get("alarmState") or trait_value.get("state", {}).get("alarmState")
-                return state in ("SMOKE", "FIRE", "ALARM")
-            if trait_key.endswith("CarbonMonoxide"):
-                state = trait_value.get("alarmState") or trait_value.get("state", {}).get("alarmState")
-                return state in ("CO_ALARM", "ALARM")
-        return False
-
-    @property
-    def extra_state_attributes(self):
-        data = self.hass.data[DOMAIN][self._entry_id]
-        attrs = {"restricted": data.get("restricted", False)}
-        if data.get("restricted_reason"):
-            attrs["restricted_reason"] = data["restricted_reason"]
-        return attrs
-
-    async def async_update(self):
-        """Refresh device state from SDM."""
-        data = self.hass.data[DOMAIN][self._entry_id]
-        if not data.get("device_access"):
-            return
-        session = async_get_clientsession(self.hass)
-        try:
-            updated = await sdm_get_device(session, data["access_token"], self._device_name)
-            if updated:
-                self._device = updated
-        except Exception:
-            pass
-
-    async def async_silence(self):
-        """Send Silence command."""
-        data = self.hass.data[DOMAIN][self._entry_id]
-        if not data.get("device_access"):
-            raise RuntimeError("Device Access not configured")
-        session = async_get_clientsession(self.hass)
-        cmd = {"command": "sdm.devices.commands.SmokeAlarm.Silence", "params": {}}
-        await sdm_execute_command(session, data["access_token"], self._device_name, cmd)
+        trait = traits.get("sdm.devices.traits.SmokeAlarm") or traits.get("sdm.devices.traits.CarbonMonoxideDetector")
+        if not trait:
+            return False
+        # Different trait shapes may exist; be defensive
+        alarm_state = trait.get("alarmState") or trait.get("state", {}).get("alarmState")
+        return alarm_state in ("SMOKE", "FIRE", "ALARM", "CO_ALARM")
