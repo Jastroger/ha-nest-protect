@@ -93,6 +93,20 @@ class NestClient:
 
         return self.auth
 
+    async def ensure_authenticated(self) -> None:
+        """Ensure the client has a valid Nest session."""
+
+        if self.nest_session and not self.nest_session.is_expired():
+            return
+
+        if not self.auth or self.auth.is_expired():
+            await self.get_access_token()
+
+        if not self.auth:
+            raise NotAuthenticatedException("Unable to retrieve Google access token")
+
+        self.nest_session = await self.authenticate(self.auth.access_token)
+
     async def get_access_token_from_refresh_token(
         self, refresh_token: str | None = None
     ) -> GoogleAuthResponse:

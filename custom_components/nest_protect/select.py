@@ -17,7 +17,7 @@ class NestProtectSelectDescription(SelectEntityDescription):
     """Class to describe an Nest Protect sensor."""
 
 
-BRIGHTNESS_TO_PRESET: dict[str, str] = {1: "low", 2: "medium", 3: "high"}
+BRIGHTNESS_TO_PRESET: dict[int, str] = {1: "low", 2: "medium", 3: "high"}
 
 PRESET_TO_BRIGHTNESS = {v: k for k, v in BRIGHTNESS_TO_PRESET.items()}
 
@@ -60,9 +60,11 @@ class NestProtectSelect(NestDescriptiveEntity, SelectEntity):
     entity_description: NestProtectSelectDescription
 
     @property
-    def current_option(self) -> str:
+    def current_option(self) -> str | None:
         """Return the selected entity option to represent the entity state."""
         state = self.bucket.value.get(self.entity_description.key)
+        if state is None:
+            return None
         return BRIGHTNESS_TO_PRESET.get(state)
 
     @property
@@ -73,6 +75,9 @@ class NestProtectSelect(NestDescriptiveEntity, SelectEntity):
     async def async_select_option(self, option: str) -> None:
         """Change the selected option."""
         select = PRESET_TO_BRIGHTNESS.get(option)
+        if select is None:
+            LOGGER.warning("Unknown brightness preset requested: %s", option)
+            return
 
         objects = [
             {
@@ -84,16 +89,17 @@ class NestProtectSelect(NestDescriptiveEntity, SelectEntity):
             }
         ]
 
-        if not self.client.nest_session or self.client.nest_session.is_expired():
-            if not self.client.auth or self.client.auth.is_expired():
-                await self.client.get_access_token()
+        await self.client.ensure_authenticated()
 
-            await self.client.authenticate(self.client.auth.access_token)
+        transport_url = (
+            self.client.transport_url
+            or self.client.nest_session.urls.transport_url
+        )
 
         result = await self.client.update_objects(
             self.client.nest_session.access_token,
             self.client.nest_session.userid,
-            self.client.transport_url,
+            transport_url,
             objects,
         )
 

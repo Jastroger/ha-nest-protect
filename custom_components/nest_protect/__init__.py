@@ -40,7 +40,7 @@ class HomeAssistantNestProtectData:
     """Nest Protect data stored in the Home Assistant data object."""
 
     devices: dict[str, Bucket]
-    areas: list[str, str]
+    areas: dict[str, str]
     client: NestClient
 
 
@@ -125,7 +125,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     # Subscribe for real-time updates
-    # TODO cancel when closing HA / unloading entry
     _register_subscribe_task(hass, entry, data)
 
     return True
@@ -140,9 +139,16 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 
 def _register_subscribe_task(
-    hass: HomeAssistant, entry: ConfigEntry, data: _async_subscribe_for_data
-):
-    return asyncio.create_task(_async_subscribe_for_data(hass, entry, data))
+    hass: HomeAssistant, entry: ConfigEntry, data: FirstDataAPIResponse
+) -> None:
+    """Register the background subscription task and ensure it is cleaned up."""
+
+    task = hass.async_create_background_task(
+        _async_subscribe_for_data(hass, entry, data),
+        name="nest_protect-subscribe",
+    )
+
+    entry.async_on_unload(task.cancel)
 
 
 async def _async_subscribe_for_data(
@@ -152,19 +158,7 @@ async def _async_subscribe_for_data(
     entry_data: HomeAssistantNestProtectData = hass.data[DOMAIN][entry.entry_id]
 
     try:
-        # TODO move refresh token logic to client
-        if (
-            not entry_data.client.nest_session
-            or entry_data.client.nest_session.is_expired()
-        ):
-            LOGGER.debug("Subscriber: authenticate for new Nest session")
-
-        if not entry_data.client.auth or entry_data.client.auth.is_expired():
-            LOGGER.debug("Subscriber: retrieving new Google access token")
-            auth = await entry_data.client.get_access_token()
-            entry_data.client.nest_session = await entry_data.client.authenticate(
-                auth.access_token
-            )
+        await entry_data.client.ensure_authenticated()
 
         # Subscribe to Google Nest subscribe endpoint
         result = await entry_data.client.subscribe_for_data(
@@ -240,8 +234,7 @@ async def _async_subscribe_for_data(
     except NotAuthenticatedException:
         LOGGER.debug("Subscriber: 401 exception.")
         # Renewing access token
-        await entry_data.client.get_access_token()
-        await entry_data.client.authenticate(entry_data.client.auth.access_token)
+        await entry_data.client.ensure_authenticated()
         _register_subscribe_task(hass, entry, data)
 
     except BadCredentialsException as exception:

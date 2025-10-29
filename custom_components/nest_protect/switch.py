@@ -28,7 +28,7 @@ class NestProtectSwitchDescription(
     """Class to describe an Nest Protect sensor."""
 
 
-BRIGHTNESS_TO_PRESET: dict[str, str] = {1: "low", 2: "medium", 3: "high"}
+BRIGHTNESS_TO_PRESET: dict[int, str] = {1: "low", 2: "medium", 3: "high"}
 
 PRESET_TO_BRIGHTNESS = {v: k for k, v in BRIGHTNESS_TO_PRESET.items()}
 
@@ -105,16 +105,17 @@ class NestProtectSwitch(NestDescriptiveEntity, SwitchEntity):
             }
         ]
 
-        if not self.client.nest_session or self.client.nest_session.is_expired():
-            if not self.client.auth or self.client.auth.is_expired():
-                await self.client.get_access_token()
+        await self.client.ensure_authenticated()
 
-            await self.client.authenticate(self.client.auth.access_token)
+        transport_url = (
+            self.client.transport_url
+            or self.client.nest_session.urls.transport_url
+        )
 
         result = await self.client.update_objects(
             self.client.nest_session.access_token,
             self.client.nest_session.userid,
-            self.client.transport_url,
+            transport_url,
             objects,
         )
 
@@ -132,16 +133,17 @@ class NestProtectSwitch(NestDescriptiveEntity, SwitchEntity):
             }
         ]
 
-        if not self.client.nest_session or self.client.nest_session.is_expired():
-            if not self.client.auth or self.client.auth.is_expired():
-                await self.client.get_access_token()
+        await self.client.ensure_authenticated()
 
-            await self.client.authenticate(self.client.auth.access_token)
+        transport_url = (
+            self.client.transport_url
+            or self.client.nest_session.urls.transport_url
+        )
 
         result = await self.client.update_objects(
             self.client.nest_session.access_token,
             self.client.nest_session.userid,
-            self.client.transport_url,
+            transport_url,
             objects,
         )
 

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from urllib.parse import urljoin
+
 from homeassistant.core import callback
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
@@ -56,6 +58,9 @@ class NestEntity(Entity):
         """Generate device info."""
 
         if self.bucket.object_key.startswith("topaz."):
+            structure_id = self.bucket.value.get("structure_id")
+            base_url = "https://home.nest.com/protect/"
+
             return DeviceInfo(
                 connections={
                     (dr.CONNECTION_NETWORK_MAC, self.bucket.value["wifi_mac_address"])
@@ -69,8 +74,9 @@ class NestEntity(Entity):
                     "Wired" if self.bucket.value["wired_or_battery"] == 0 else "Battery"
                 ),
                 suggested_area=self.area,
-                configuration_url="https://home.nest.com/protect/"
-                + self.bucket.value["structure_id"],  # TODO change url based on device
+                configuration_url=(
+                    urljoin(base_url, f"{structure_id}/") if structure_id else base_url
+                ),
             )
 
         if self.bucket.object_key.startswith("kryptonite."):
