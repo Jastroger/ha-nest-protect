@@ -165,3 +165,35 @@ async def test_migrate_entry_without_refresh_token(hass):
     assert entry.data["auth_implementation"] == implementation_domain(
         Environment.FIELDTEST
     )
+
+
+async def test_migrate_entry_with_string_account_type(hass):
+    """Ensure migration handles string account type values."""
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_ACCOUNT_TYPE: "production", "refresh_token": "refresh"},
+        version=3,
+    )
+    entry.add_to_hass(hass)
+
+    with patch(
+        "custom_components.nest_protect.async_ensure_oauth_implementation",
+        AsyncMock(),
+    ), patch(
+        "custom_components.nest_protect.async_token_from_refresh_token",
+        AsyncMock(return_value={"access_token": "token", "refresh_token": "refresh"}),
+    ):
+        assert await async_migrate_entry(hass, entry)
+
+    assert entry.version == 4
+    assert entry.data[CONF_ACCOUNT_TYPE] is Environment.PRODUCTION
+
+
+def test_implementation_domain_accepts_string():
+    """Ensure the implementation domain helper handles string environments."""
+
+    assert (
+        implementation_domain("fieldtest")
+        == implementation_domain(Environment.FIELDTEST)
+    )
