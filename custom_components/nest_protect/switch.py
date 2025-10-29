@@ -15,25 +15,18 @@ from .entity import NestDescriptiveEntity
 
 @dataclass
 class NestProtectSwitchDescriptionMixin:
-    """Define an entity description mixin for select entities."""
-
-    # options: list[str]
-    # select_option: Callable[[str, Callable[..., Awaitable[None]]], Awaitable[None]]
+    """Extra description data for Nest Protect switches."""
 
 
 @dataclass
 class NestProtectSwitchDescription(
     SwitchEntityDescription, NestProtectSwitchDescriptionMixin
 ):
-    """Class to describe an Nest Protect sensor."""
+    """Description of a Nest Protect switch entity."""
 
 
-BRIGHTNESS_TO_PRESET: dict[int, str] = {1: "low", 2: "medium", 3: "high"}
-
-PRESET_TO_BRIGHTNESS = {v: k for k, v in BRIGHTNESS_TO_PRESET.items()}
-
-
-SWITCH_DESCRIPTIONS: list[SwitchEntityDescription] = [
+# Diese sind die konfigurierbaren Flags am Protect (Pathlight, Heads-Up usw.)
+SWITCH_DESCRIPTIONS: list[NestProtectSwitchDescription] = [
     NestProtectSwitchDescription(
         key="night_light_enable",
         name="Pathlight",
@@ -62,78 +55,79 @@ SWITCH_DESCRIPTIONS: list[SwitchEntityDescription] = [
 
 
 async def async_setup_entry(hass, entry, async_add_devices):
-    """Set up the Nest Protect sensors from a config entry."""
-
+    """Set up the Nest Protect switches from a config entry."""
     data: HomeAssistantNestProtectData = hass.data[DOMAIN][entry.entry_id]
+
+    # Wichtigster Fix: devices kann None sein (restricted mode). Dann bauen wir einfach nichts.
+    device_map = data.devices or {}
     entities: list[NestProtectSwitch] = []
 
+    # Map {config_key: entity_description}
     SUPPORTED_KEYS: dict[str, NestProtectSwitchDescription] = {
         description.key: description for description in SWITCH_DESCRIPTIONS
     }
 
-    for device in data.devices.values():
-        for key in device.value:
+    # device_map soll ein dict {object_key -> Bucket} sein
+    for device in device_map.values():
+        # device.value ist das Dict mit den Flags (night_light_enable etc.)
+        for key in getattr(device, "value", {}):
             if description := SUPPORTED_KEYS.get(key):
                 entities.append(
                     NestProtectSwitch(device, description, data.areas, data.client)
                 )
 
+    if not entities:
+        LOGGER.debug(
+            "nest_protect.switch: keine Entities erzeugt. "
+            "restricted=%s reason=%s devices_present=%s",
+            getattr(data, "restricted", False),
+            getattr(data, "restricted_reason", None),
+            bool(device_map),
+        )
+
     async_add_devices(entities)
 
 
 class NestProtectSwitch(NestDescriptiveEntity, SwitchEntity):
-    """Representation of a Nest Protect Switch."""
+    """Representation of a Nest Protect switch entity (Pathlight, Heads-Up, etc.)."""
 
     entity_description: NestProtectSwitchDescription
 
     @property
     def is_on(self) -> bool | None:
-        """Return True if entity is on."""
-        state = self.bucket.value.get(self.entity_description.key)
-
-        return state
+        """Return True if the feature is enabled."""
+        return self.bucket.value.get(self.entity_description.key)
 
     async def async_turn_on(self, **kwargs: Any) -> None:
-        """Turn the entity on."""
-        objects = [
-            {
-                "object_key": self.bucket.object_key,
-                "op": "MERGE",
-                "value": {
-                    self.entity_description.key: True,
-                },
-            }
-        ]
-
-        await self.client.ensure_authenticated()
-
-        transport_url = (
-            self.client.transport_url
-            or self.client.nest_session.urls.transport_url
-        )
-
-        result = await self.client.update_objects(
-            self.client.nest_session.access_token,
-            self.client.nest_session.userid,
-            transport_url,
-            objects,
-        )
-
-        LOGGER.debug(result)
+        """Enable the feature."""
+        await self._async_send_update(True)
 
     async def async_turn_off(self, **kwargs: Any) -> None:
-        """Turn the entity off."""
+        """Disable the feature."""
+        await self._async_send_update(False)
+
+    async def _async_send_update(self, new_state: bool) -> None:
+        """Send update to Nest backend for this setting."""
+        # Wenn wir im restricted mode sind, client kann evtl. nicht authentifizieren.
+        if self.client is None or not hasattr(self.client, "nest_session"):
+            LOGGER.warning(
+                "Kann %s nicht setzen (kein aktiver Nest-Client / restricted mode).",
+                self.entity_description.key,
+            )
+            return
+
         objects = [
             {
                 "object_key": self.bucket.object_key,
                 "op": "MERGE",
                 "value": {
-                    self.entity_description.key: False,
+                    self.entity_description.key: new_state,
                 },
             }
         ]
 
-        await self.client.ensure_authenticated()
+        # Stelle sicher, dass das Session-Token noch gültig ist
+        await self.client.ensure_authenticated(self.client.nest_session.access_token)
 
         transport_url = (
             self.client.transport_url
@@ -147,4 +141,9 @@ class NestProtectSwitch(NestDescriptiveEntity, SwitchEntity):
             objects,
         )
 
-        LOGGER.debug(result)
+        LOGGER.debug(
+            "NestProtectSwitch updated %s -> %s result=%s",
+            self.entity_description.key,
+            new_state,
+            result,
+        )
