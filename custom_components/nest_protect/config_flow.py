@@ -67,13 +67,8 @@ class ConfigFlow(config_entry_oauth2_flow.AbstractOAuth2FlowHandler, domain=NEST
                 self.flow_impl = impl
                 return await self.async_step_auth()
 
-        # das ist nur für die UI-Beschreibung im ersten Schritt,
-        # damit {redirect_uri_example} ersetzt werden kann.
-        # Wir versuchen, der UI ein sinnvolles Beispiel zu geben.
-        # Wenn du Nabu Casa nutzt, nimm die externe URL aus HA-Einstellungen.
-        # Falls du keine hast, basteln wir eine "https://<dein-nabu>.ui.nabu.casa/auth/external/callback"
+
         try:
-            # wenn du 'external_url' aus den HA-Einstellungen holen willst:
             external_url = self.hass.config.external_url
             if external_url:
                 example_redirect = f"{external_url.rstrip('/')}/auth/external/callback"
