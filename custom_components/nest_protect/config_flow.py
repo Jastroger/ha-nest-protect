@@ -9,7 +9,7 @@ from homeassistant import config_entries
 from homeassistant.core import HomeAssistant
 
 from .const import DOMAIN, LOGGER
-from .pynest.oauth import NestOAuthClient
+from .oauth import NestOAuthClient
 from .pynest.client import NestClient
 from .pynest.exceptions import PynestException
 
