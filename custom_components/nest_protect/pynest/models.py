@@ -275,6 +275,7 @@ class NestEnvironment:
 
     name: str
     client_id: str
+    client_secret: str
     host: str
 
 

@@ -2,16 +2,9 @@
   "config": {
     "step": {
       "user": {
-        "description": "Select your Account Type. Most users will need to select Google Account. Field Test is only available for selected testers in the Google Field Test program.",
+        "description": "Select your account type and follow the sign-in prompt to link Home Assistant with your Google account.",
         "data": {
           "account_type": "Account Type"
-        }
-      },
-      "account_link": {
-        "description": "Unfortunately, Google does not provide an official API for this integration. To get it working, you will need to manually retrieve your issue_token and cookies by following the instructions in the integration README (https://github.com/iMicknl/ha-nest-protect/#retrieving-issue_token-and-cookies). Please paste them below.",
-        "data": {
-          "issue_token": "[%key:common::config_flow::data::issue_token%]",
-          "cookies": "[%key:common::config_flow::data::cookies%]"
         }
       }
     },

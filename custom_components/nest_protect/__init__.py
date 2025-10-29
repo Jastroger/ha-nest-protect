@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
+from typing import Any
 
 from aiohttp import ClientConnectorError, ClientError, ServerDisconnectedError
 from homeassistant.config_entries import ConfigEntry
@@ -15,12 +16,15 @@ from homeassistant.helpers.dispatcher import async_dispatcher_send
 
 from .const import (
     CONF_ACCOUNT_TYPE,
-    CONF_COOKIES,
-    CONF_ISSUE_TOKEN,
-    CONF_REFRESH_TOKEN,
     DOMAIN,
     LOGGER,
     PLATFORMS,
+)
+from .oauth import (
+    async_ensure_oauth_implementation,
+    async_get_nest_oauth_session,
+    async_token_from_refresh_token,
+    implementation_domain,
 )
 from .pynest.client import NestClient
 from .pynest.const import NEST_ENVIRONMENTS
@@ -42,6 +46,46 @@ class HomeAssistantNestProtectData:
     devices: dict[str, Bucket]
     areas: dict[str, str]
     client: NestClient
+    oauth_session: "NestProtectOAuth2Session"
+
+
+async def async_ensure_token_data(
+    hass: HomeAssistant, account_type: Environment, entry_data: dict[str, Any]
+) -> dict[str, Any]:
+    """Build token data for migrated entries."""
+
+    await async_ensure_oauth_implementation(hass, account_type)
+
+    refresh_token = entry_data.get("refresh_token", "")
+    try:
+        token = (
+            await async_token_from_refresh_token(hass, account_type, refresh_token)
+            if refresh_token
+            else _empty_token(refresh_token)
+        )
+    except ConfigEntryAuthFailed:
+        LOGGER.debug("Failed to migrate refresh token for %s", account_type, exc_info=True)
+        token = _empty_token(refresh_token)
+
+    return {
+        CONF_ACCOUNT_TYPE: account_type,
+        "auth_implementation": implementation_domain(account_type),
+        "token": token,
+    }
+
+
+def _empty_token(refresh_token: str) -> dict[str, Any]:
+    """Return an empty token payload to trigger re-auth."""
+
+    return {
+        "access_token": "",
+        "refresh_token": refresh_token,
+        "token_type": "Bearer",
+        "scope": "",
+        "id_token": "",
+        "expires_in": 0,
+        "expires_at": 0,
+    }
 
 
 async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry):
@@ -55,6 +99,16 @@ async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry):
         config_entry.data = {**entry_data}
         config_entry.version = 2
 
+    if config_entry.version < 4:
+        current_data = {**config_entry.data}
+        account_type = current_data.get(CONF_ACCOUNT_TYPE, Environment.PRODUCTION)
+
+        implementation = await async_ensure_token_data(hass, account_type, current_data)
+
+        hass.config_entries.async_update_entry(
+            config_entry, data=implementation, version=4
+        )
+
     LOGGER.debug("Migration to version %s successful", config_entry.version)
 
     return True
@@ -62,29 +116,17 @@ async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry):
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     """Set up Nest Protect from a config entry."""
-    issue_token = None
-    cookies = None
-    refresh_token = None
-
-    if CONF_ISSUE_TOKEN in entry.data and CONF_COOKIES in entry.data:
-        issue_token = entry.data[CONF_ISSUE_TOKEN]
-        cookies = entry.data[CONF_COOKIES]
-    if CONF_REFRESH_TOKEN in entry.data:
-        refresh_token = entry.data[CONF_REFRESH_TOKEN]
-
     session = async_create_clientsession(hass)
     account_type = entry.data[CONF_ACCOUNT_TYPE]
     client = NestClient(session=session, environment=NEST_ENVIRONMENTS[account_type])
 
-    try:
-        # Using user-retrieved cookies for authentication
-        if issue_token and cookies:
-            auth = await client.get_access_token_from_cookies(issue_token, cookies)
-        # Using refresh_token from legacy authentication method
-        elif refresh_token:
-            auth = await client.get_access_token_from_refresh_token(refresh_token)
+    oauth_session = await async_get_nest_oauth_session(hass, entry)
 
-        nest = await client.authenticate(auth.access_token)
+    try:
+        access_token = await oauth_session.async_get_access_token()
+        nest = await client.ensure_authenticated(access_token)
+    except ConfigEntryAuthFailed:
+        raise
     except (TimeoutError, ClientError) as exception:
         raise ConfigEntryNotReady from exception
     except BadCredentialsException as exception:
@@ -120,6 +162,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         devices=devices,
         areas=areas,
         client=client,
+        oauth_session=oauth_session,
     )
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
@@ -158,12 +201,13 @@ async def _async_subscribe_for_data(
     entry_data: HomeAssistantNestProtectData = hass.data[DOMAIN][entry.entry_id]
 
     try:
-        await entry_data.client.ensure_authenticated()
+        access_token = await entry_data.oauth_session.async_get_access_token()
+        nest = await entry_data.client.ensure_authenticated(access_token)
 
         # Subscribe to Google Nest subscribe endpoint
         result = await entry_data.client.subscribe_for_data(
-            entry_data.client.nest_session.access_token,
-            entry_data.client.nest_session.userid,
+            nest.access_token,
+            nest.userid,
             data.service_urls["urls"]["transport_url"],
             data.updated_buckets,
         )
@@ -231,10 +275,15 @@ async def _async_subscribe_for_data(
         LOGGER.debug("Subscriber: Nest Service sent empty response.")
         _register_subscribe_task(hass, entry, data)
 
+    except ConfigEntryAuthFailed:
+        LOGGER.debug("Subscriber: OAuth credentials invalid.")
+        raise
+
     except NotAuthenticatedException:
         LOGGER.debug("Subscriber: 401 exception.")
         # Renewing access token
-        await entry_data.client.ensure_authenticated()
+        access_token = await entry_data.oauth_session.async_get_access_token()
+        await entry_data.client.ensure_authenticated(access_token)
         _register_subscribe_task(hass, entry, data)
 
     except BadCredentialsException as exception:
