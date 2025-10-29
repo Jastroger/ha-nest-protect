@@ -5,6 +5,8 @@ from __future__ import annotations
 import time
 from typing import Any, cast
 
+from urllib.parse import urlparse
+
 from aiohttp import ClientError
 from aiohttp.client_exceptions import ClientResponseError
 from homeassistant.config_entries import ConfigEntry
@@ -43,6 +45,28 @@ class NestOAuth2Implementation(config_entry_oauth2_flow.LocalOAuth2Implementatio
         """Return a friendly name for the implementation."""
 
         return self._name
+
+    @property
+    def redirect_uri(self) -> str:
+        """Return the redirect URI, preferring the user's Home Assistant URL."""
+
+        request = config_entry_oauth2_flow.http.current_request.get()
+        if request is not None:
+            frontend_base = request.headers.get(
+                config_entry_oauth2_flow.HEADER_FRONTEND_BASE
+            )
+            if frontend_base:
+                parsed = urlparse(frontend_base)
+                hostname = (parsed.hostname or "").lower()
+
+                if hostname and not hostname.endswith("home-assistant.io") and not hostname.endswith(
+                    "nabu.casa"
+                ):
+                    base = frontend_base.rstrip("/")
+                    if base:
+                        return f"{base}{config_entry_oauth2_flow.AUTH_CALLBACK_PATH}"
+
+        return super().redirect_uri
 
     @property
     def extra_authorize_data(self) -> dict[str, Any]:

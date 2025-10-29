@@ -10,8 +10,8 @@
       "required": "This field cannot be empty."
     },
     "step": {
-      "intro": {
-        "description": "Before linking Nest Protect you need to create your own OAuth 2.0 client in the Google Cloud Console.\n\n1. Visit https://console.cloud.google.com and sign in.\n2. Create a new project or select an existing one.\n3. Configure the OAuth consent screen as External and add your own email address as a test user.\n4. Create new credentials → OAuth client ID with the application type Web application.\n5. Enter the authorized redirect URI of your Home Assistant instance followed by /auth/external/callback.\n   This URL must match your external Home Assistant URL (Settings → System → Network → External URL).\n   Examples:\n   https://yourname.ui.nabu.casa/auth/external/callback\n   https://myha.duckdns.org:8123/auth/external/callback\n6. Copy the generated client ID and client secret.\n7. Click Next and enter these values in the following step.",
+      "user": {
+        "description": "Before linking Nest Protect you need to create your own OAuth 2.0 client in the Google Cloud Console.\n\n1. Visit https://console.cloud.google.com and sign in.\n2. Create a new project or select an existing one.\n3. Configure the OAuth consent screen as External and add your own email address as a test user.\n4. Create new credentials → OAuth client ID with the application type Web application.\n5. Enter the authorized redirect URI of your Home Assistant instance followed by /auth/external/callback.\n   This URL must match your external Home Assistant URL (Settings → System → Network → External URL).\n   Example: {redirect_uri_example}\n   If Google reports https://my.home-assistant.io/redirect/oauth as the redirect URI, open this flow from your Home Assistant URL and try again.\n6. Copy the generated client ID and client secret.\n7. Click Next and enter these values in the following step.",
         "title": "Nest Protect"
       },
       "credentials": {
