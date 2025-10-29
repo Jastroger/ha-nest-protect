@@ -8,7 +8,7 @@ import voluptuous as vol
 from homeassistant import config_entries
 
 from .const import DOMAIN, LOGGER
-from .pynest.oauth import NestOAuthClient
+from .oauth import NestOAuthClient
 from .pynest.client import NestClient
 from .pynest.exceptions import PynestException
 
