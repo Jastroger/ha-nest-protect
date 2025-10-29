@@ -1,15 +1,17 @@
-"""Nest Protect client – rewritten for OAuth2 + restricted fallback."""
+"""Nest Protect client – OAuth2 + restricted fallback."""
 
 from __future__ import annotations
 import asyncio
-import aiohttp
 from typing import Any
+
+import aiohttp
+
 from .exceptions import PynestException
-from .const import LOGGER
+from ..const import LOGGER
 
 
 class NestClient:
-    """Handles Nest Protect API communication via OAuth or fallback."""
+    """Handles Nest Protect API communication via OAuth, with restricted fallback."""
 
     def __init__(self, session: aiohttp.ClientSession) -> None:
         self.session = session
@@ -17,6 +19,8 @@ class NestClient:
         self.restricted: bool = False
         self.restricted_reason: str | None = None
         self.devices: dict[str, Any] | None = None
+
+        # These URLs are how the legacy Nest API is typically addressed
         self.urls = type(
             "urls",
             (),
@@ -27,21 +31,26 @@ class NestClient:
         )()
 
     async def authenticate(self, token: str) -> dict[str, Any]:
-        """Authenticate using a Google OAuth2 access token."""
+        """Authenticate using a Google OAuth2 access token, try to get Nest JWT."""
         headers = {"authorization": f"Bearer {token}"}
         body = {"embed_google_oauth_access_token": True, "expire_after": "3600s"}
 
         LOGGER.debug("Authenticating against Nest JWT endpoint …")
+
         try:
             async with self.session.post(
-                f"{self.urls.auth_proxy_url}/v1/issue_jwt", headers=headers, json=body
+                f"{self.urls.auth_proxy_url}/v1/issue_jwt",
+                headers=headers,
+                json=body,
             ) as response:
                 nest_response = await response.json(content_type=None)
                 LOGGER.debug("Nest JWT response: %s", nest_response)
 
-                # --- handle known failure modes ---
-                if response.status == 403 and "ACCESS_TOKEN_SCOPE_INSUFFICIENT" in str(
-                    nest_response
+                # Google now commonly returns:
+                # 403 ACCESS_TOKEN_SCOPE_INSUFFICIENT
+                if (
+                    response.status == 403
+                    and "ACCESS_TOKEN_SCOPE_INSUFFICIENT" in str(nest_response)
                 ):
                     LOGGER.warning(
                         "Nest Protect API access blocked (403 insufficient scopes). "
@@ -51,8 +60,11 @@ class NestClient:
                     self.restricted_reason = "access_token_scope_insufficient"
                     return {"restricted": True}
 
-                if response.status == 400 and "missing user credentials" in str(
-                    nest_response
+                # Older block:
+                # 400 missing user credentials
+                if (
+                    response.status == 400
+                    and "missing user credentials" in str(nest_response)
                 ):
                     LOGGER.warning(
                         "Nest Protect authenticate failed (missing user credentials). "
@@ -70,39 +82,56 @@ class NestClient:
                 jwt_token = nest_response.get("jwt")
                 userid = nest_response.get("userid")
                 if not jwt_token or not userid:
-                    raise PynestException("Missing jwt or userid in Nest response.")
+                    raise PynestException(
+                        "Missing jwt or userid in Nest response."
+                    )
 
+                # Store a minimal "session"
                 self.nest_session = type(
-                    "NestSession", (), {"jwt": jwt_token, "userid": userid}
+                    "NestSession",
+                    (),
+                    {
+                        "jwt": jwt_token,
+                        "userid": userid,
+                    },
                 )()
+
                 LOGGER.info("Nest Protect authenticated successfully.")
                 return {"jwt": jwt_token, "userid": userid}
 
         except asyncio.TimeoutError as err:
             raise PynestException(f"Timeout during authenticate: {err}") from err
         except aiohttp.ClientError as err:
-            raise PynestException(f"Client error during authenticate: {err}") from err
+            raise PynestException(
+                f"Client error during authenticate: {err}"
+            ) from err
 
     async def fetch_devices(self) -> dict[str, Any]:
-        """Fetch device list from Nest cloud or dummy fallback."""
+        """Fetch Protect devices, or produce fallback dummy in restricted mode."""
         if self.restricted:
             LOGGER.warning(
                 "Nest Protect running in restricted mode: no cloud access available. "
                 "Returning dummy device set."
             )
-            return self._dummy_devices()
+            data = self._dummy_devices()
+            self.devices = data
+            return data
 
         if not self.nest_session:
             raise PynestException("Not authenticated.")
 
+        # This was how the original iMicknl integration queried devices.
         url = f"{self.urls.transport_url}/api/nest/v1/devices"
         headers = {"authorization": f"Basic {self.nest_session.jwt}"}
 
         LOGGER.debug("Fetching Nest Protect devices from %s", url)
+
         async with self.session.get(url, headers=headers) as resp:
             if resp.status != 200:
                 body = await resp.text()
-                raise PynestException(f"Device fetch failed: {resp.status} - {body}")
+                raise PynestException(
+                    f"Device fetch failed: {resp.status} - {body}"
+                )
 
             data = await resp.json(content_type=None)
             self.devices = data
@@ -110,7 +139,7 @@ class NestClient:
             return data
 
     def _dummy_devices(self) -> dict[str, Any]:
-        """Return placeholder devices for restricted mode."""
+        """Return a placeholder device list so HA can still create entities."""
         dummy = {
             "0000000000000000": {
                 "where_id": "restricted",
@@ -121,12 +150,17 @@ class NestClient:
                 "software_version": "N/A",
             }
         }
-        self.devices = dummy
         return dummy
 
-    async def update_objects(self, access_token: str, userid: str, transport_url: str, objects: list[dict[str, Any]]):
-        """Placeholder for compatibility; restricted mode does nothing."""
+    async def update_objects(
+        self,
+        access_token: str,
+        userid: str,
+        transport_url: str,
+        objects: list[dict[str, Any]],
+    ):
+        """Compatibility stub for switch/select writes."""
         if self.restricted:
-            LOGGER.debug("Restricted mode – update ignored for %s", objects)
+            LOGGER.debug("Restricted mode – update ignored: %s", objects)
             return {"restricted": True}
         return {"ok": True}
