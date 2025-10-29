@@ -1,27 +1,17 @@
-"""Constants for Nest Protect."""
+"""Constants for Nest Protect integration."""
 
 from __future__ import annotations
-
 import logging
 from typing import Final
 
-from homeassistant.const import Platform
-
-LOGGER: logging.Logger = logging.getLogger(__package__)
+LOGGER = logging.getLogger(__package__)
 
 DOMAIN: Final = "nest_protect"
 ATTRIBUTION: Final = "Data provided by Google"
 
-# Google OAuth authorize endpoint
 OAUTH_AUTHORIZE_URL: Final = "https://accounts.google.com/o/oauth2/v2/auth"
-
 OAUTH_SCOPES: Final = [
     "https://www.googleapis.com/auth/userinfo.email",
 ]
 
-PLATFORMS: list[Platform] = [
-    Platform.BINARY_SENSOR,
-    Platform.SENSOR,
-    Platform.SELECT,
-    Platform.SWITCH,
-]
+PLATFORMS: Final = ["binary_sensor", "sensor"]
