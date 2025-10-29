@@ -67,62 +67,7 @@ class NestOAuth2Implementation(config_entry_oauth2_flow.LocalOAuth2Implementatio
                     if base:
                         return f"{base}{config_entry_oauth2_flow.AUTH_CALLBACK_PATH}"
 
-        for base in self._candidate_redirect_bases():
-            if base:
-                return f"{base}{config_entry_oauth2_flow.AUTH_CALLBACK_PATH}"
-
         return super().redirect_uri
-
-    def _candidate_redirect_bases(self) -> list[str]:
-        """Yield candidate Home Assistant base URLs for the redirect."""
-
-        candidates: list[str] = []
-
-        try:
-            external_url = get_url(
-                self.hass,
-                prefer_external=True,
-                allow_internal=False,
-                allow_ip=False,
-                allow_cloud=False,
-            )
-        except (NoURLAvailableError, ValueError):
-            external_url = None
-
-        if external_url:
-            candidates.append(external_url.rstrip("/"))
-
-        try:
-            internal_url = get_url(
-                self.hass,
-                prefer_external=False,
-                allow_cloud=False,
-            )
-        except (NoURLAvailableError, ValueError):
-            internal_url = None
-
-        if internal_url:
-            candidates.append(internal_url.rstrip("/"))
-
-        valid_candidates: list[str] = []
-        seen: set[str] = set()
-        for base in candidates:
-            parsed = urlparse(base)
-            hostname = (parsed.hostname or "").lower()
-
-            if not hostname:
-                continue
-
-            if hostname.endswith("home-assistant.io") or hostname.endswith("nabu.casa"):
-                continue
-
-            if base in seen:
-                continue
-
-            seen.add(base)
-            valid_candidates.append(base)
-
-        return valid_candidates
 
     @property
     def extra_authorize_data(self) -> dict[str, Any]:
