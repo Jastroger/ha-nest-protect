@@ -1,6 +1,9 @@
-"""Nest Protect integration init."""
+"""Nest Protect integration - legacy-style initializer with HomeAssistantNestProtectData."""
 
 from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Any
 
 from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
@@ -8,59 +11,62 @@ from homeassistant.config_entries import ConfigEntry
 from .const import DOMAIN, LOGGER, PLATFORMS
 
 
+@dataclass
+class HomeAssistantNestProtectData:
+    """Container with state stored for this integration entry."""
+    hass: HomeAssistant
+    entry: ConfigEntry
+    client: Any | None = None
+    nest_auth: dict | None = None
+    user: str | None = None
+    devices: dict | None = None
+    restricted: bool = False
+    restricted_reason: str | None = None
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Set up Nest Protect integration from a config entry."""
-
+    """Set up the Nest Protect integration for a config entry (legacy flow)."""
     hass.data.setdefault(DOMAIN, {})
-    hass.data[DOMAIN][entry.entry_id] = {
-        "entry": entry,
-        "device_access": entry.data.get("device_access", False),
-        "device_access_project_id": entry.data.get("device_access_project_id"),
-        "access_token": entry.data.get("access_token"),
-        "refresh_token": entry.data.get("refresh_token"),
-        "sdm_devices": entry.data.get("sdm_devices"),
-        "restricted": entry.data.get("restricted", False),
-        "restricted_reason": entry.data.get("restricted_reason"),
-        "no_devices_found": entry.data.get("no_devices_found"),
-    }
 
-    # Home Assistant API changed:
-    # - Newer HA: hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
-    # - Older HA: hass.config_entries.async_forward_entry_setup(entry, platform) per platform
-    #
-    # We'll try the new API first, fall back to the old one.
+    data = HomeAssistantNestProtectData(hass=hass, entry=entry)
+    data.restricted = entry.data.get("restricted", False)
+    data.restricted_reason = entry.data.get("restricted_reason")
 
-    if hasattr(hass.config_entries, "async_forward_entry_setups"):
-        # New style: forward all platforms in one go
-        await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
-    else:
-        # Old style: forward one by one
-        for platform in PLATFORMS:
-            hass.async_create_task(
-                hass.config_entries.async_forward_entry_setup(entry, platform)
-            )
+    # store container
+    hass.data[DOMAIN][entry.entry_id] = data
+
+    # Forward setup to platforms (compat for HA versions)
+    # Use new API if available, fallback to per-platform forwarding.
+    try:
+        if hasattr(hass.config_entries, "async_forward_entry_setups"):
+            await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+        else:
+            for platform in PLATFORMS:
+                hass.async_create_task(
+                    hass.config_entries.async_forward_entry_setup(entry, platform)
+                )
+    except Exception as err:
+        LOGGER.exception("Error forwarding entry setups: %s", err)
+        raise
 
     return True
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Unload a config entry."""
-
+    """Unload an entry."""
     unload_ok = True
     if hasattr(hass.config_entries, "async_unload_platforms"):
-        # Newer HA prefers async_unload_platforms
-        unload_ok = await hass.config_entries.async_unload_platforms(
-            entry, PLATFORMS
-        )
+        unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     else:
-        # Fallback for older HA
+        # fallback: try per-platform unload
         results = []
         for platform in PLATFORMS:
-            res = await hass.config_entries.async_forward_entry_unload(entry, platform)
+            try:
+                res = await hass.config_entries.async_forward_entry_unload(entry, platform)
+            except Exception:
+                res = False
             results.append(res)
         unload_ok = all(results)
 
-    if unload_ok:
-        hass.data[DOMAIN].pop(entry.entry_id, None)
-
+    hass.data[DOMAIN].pop(entry.entry_id, None)
     return unload_ok
