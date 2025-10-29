@@ -34,28 +34,70 @@ class ConfigFlow(config_entry_oauth2_flow.AbstractOAuth2FlowHandler, domain=NEST
         from .const import LOGGER
         return LOGGER
 
-    async def async_step_user(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+    async def async_step_user(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
         """Ask for client credentials (legacy path)."""
+
         errors: dict[str, str] = {}
+
         if user_input is not None:
             client_id = user_input.get("client_id", "").strip()
             client_secret = user_input.get("client_secret", "").strip()
+
             if not client_id:
                 errors["client_id"] = "required"
             if not client_secret:
                 errors["client_secret"] = "required"
+
             if not errors:
                 self._client_id = client_id
                 self._client_secret = client_secret
                 # register oauth2 implementation for the legacy path
                 self._implementation_domain = f"{self.DOMAIN}_{uuid.uuid4().hex}"
-                impl = NestOAuth2Implementation(self.hass, self._implementation_domain, self._client_id, self._client_secret)
-                config_entry_oauth2_flow.async_register_implementation(self.hass, self.DOMAIN, impl)
+                impl = NestOAuth2Implementation(
+                    self.hass,
+                    self._implementation_domain,
+                    self._client_id,
+                    self._client_secret,
+                )
+                config_entry_oauth2_flow.async_register_implementation(
+                    self.hass, self.DOMAIN, impl
+                )
                 self.flow_impl = impl
                 return await self.async_step_auth()
 
-        schema = vol.Schema({vol.Required("client_id", default=""): str, vol.Required("client_secret", default=""): str})
-        return self.async_show_form(step_id="user", data_schema=schema, errors=errors)
+        # das ist nur für die UI-Beschreibung im ersten Schritt,
+        # damit {redirect_uri_example} ersetzt werden kann.
+        # Wir versuchen, der UI ein sinnvolles Beispiel zu geben.
+        # Wenn du Nabu Casa nutzt, nimm die externe URL aus HA-Einstellungen.
+        # Falls du keine hast, basteln wir eine "https://<dein-nabu>.ui.nabu.casa/auth/external/callback"
+        try:
+            # wenn du 'external_url' aus den HA-Einstellungen holen willst:
+            external_url = self.hass.config.external_url
+            if external_url:
+                example_redirect = f"{external_url.rstrip('/')}/auth/external/callback"
+            else:
+                example_redirect = "https://<deine-nabu-url>.ui.nabu.casa/auth/external/callback"
+        except Exception:
+            example_redirect = "https://<deine-nabu-url>.ui.nabu.casa/auth/external/callback"
+
+        schema = vol.Schema(
+            {
+                vol.Required("client_id", default=""): str,
+                vol.Required("client_secret", default=""): str,
+            }
+        )
+
+        return self.async_show_form(
+            step_id="user",
+            data_schema=schema,
+            errors=errors,
+            description_placeholders={
+                "redirect_uri_example": example_redirect,
+            },
+        )
+
 
     async def async_step_auth(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         """Start the OAuth2 flow provided by Home Assistant helpers."""
