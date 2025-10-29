@@ -9,7 +9,7 @@ from homeassistant.core import HomeAssistant
 import voluptuous as vol
 
 from .const import DOMAIN
-from .pynest.oauth import NestOAuthClient
+from .oauth import NestOAuthClient
 from .client import NestClient
 from .exceptions import PynestException
 
