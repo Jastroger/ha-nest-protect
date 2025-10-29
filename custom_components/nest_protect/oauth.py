@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import time
 from typing import Any, cast
-
 from urllib.parse import urlparse
 
 from aiohttp import ClientError
@@ -14,7 +13,6 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers import config_entry_oauth2_flow
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
-from homeassistant.helpers.network import NoURLAvailableError, get_url
 
 from .const import DOMAIN, OAUTH_AUTHORIZE_URL, OAUTH_SCOPES
 from .pynest.const import TOKEN_URL
@@ -44,12 +42,20 @@ class NestOAuth2Implementation(config_entry_oauth2_flow.LocalOAuth2Implementatio
     @property
     def name(self) -> str:  # pragma: no cover - simple property
         """Return a friendly name for the implementation."""
-
         return self._name
 
     @property
     def redirect_uri(self) -> str:
-        """Return the redirect URI, preferring the user's Home Assistant URL."""
+        """
+        Return the redirect URI.
+
+        Ziel:
+        - Wenn der User über seine echte externe URL (DuckDNS, eigene Domain, Nabu Casa Remote URL)
+          im Flow ist, benutzen wir GENAU diese Basis-URL + /auth/external/callback.
+        - Wir blocken nur den Spezialfall home-assistant.io (das ist der zentrale Nabu-Casa Relay-Flow,
+          den wir hier NICHT verwenden), aber NICHT mehr nabu.casa.
+        - Wenn wir nichts Gescheites erkennen, fallback auf das Verhalten von LocalOAuth2Implementation.
+        """
 
         request = config_entry_oauth2_flow.http.current_request.get()
         if request is not None:
@@ -60,19 +66,20 @@ class NestOAuth2Implementation(config_entry_oauth2_flow.LocalOAuth2Implementatio
                 parsed = urlparse(frontend_base)
                 hostname = (parsed.hostname or "").lower()
 
-                if hostname and not hostname.endswith("home-assistant.io") and not hostname.endswith(
-                    "nabu.casa"
-                ):
+                # Wichtig: nabu.casa jetzt ERLAUBT.
+                # Wir sperren nur die zentrale my.home-assistant.io / home-assistant.io Variante aus,
+                # weil die einen externen Relay-Service erwartet, den wir hier nicht fahren.
+                if hostname and not hostname.endswith("home-assistant.io"):
                     base = frontend_base.rstrip("/")
                     if base:
                         return f"{base}{config_entry_oauth2_flow.AUTH_CALLBACK_PATH}"
 
+        # Fallback: Standard-LocalOAuth2Implementation-Redirect
         return super().redirect_uri
 
     @property
     def extra_authorize_data(self) -> dict[str, Any]:
         """Return extra data that needs to be appended to the authorize url."""
-
         return {
             "scope": " ".join(OAUTH_SCOPES),
             "access_type": "offline",
@@ -136,12 +143,10 @@ class NestProtectOAuth2Session:
     @property
     def token(self) -> dict[str, Any]:
         """Return the current OAuth token."""
-
         return self._session.token
 
     async def async_get_access_token(self) -> str:
         """Return a valid access token, refreshing if required."""
-
         try:
             await self._session.async_ensure_token_valid()
         except (ClientResponseError, ClientError) as err:
@@ -161,9 +166,7 @@ async def async_get_nest_oauth_session(
     hass: HomeAssistant, config_entry: ConfigEntry
 ) -> NestProtectOAuth2Session:
     """Create an OAuth session for the config entry."""
-
     implementation = await async_ensure_implementation_from_entry(hass, config_entry)
-
     return NestProtectOAuth2Session(hass, config_entry, implementation)
 
 
@@ -171,7 +174,6 @@ async def async_token_from_refresh_token(
     hass: HomeAssistant, client_id: str, client_secret: str, refresh_token: str
 ) -> dict[str, Any]:
     """Build a token payload from a stored refresh token."""
-
     session = async_get_clientsession(hass)
     response = await session.post(
         TOKEN_URL,
