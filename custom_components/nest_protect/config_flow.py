@@ -26,14 +26,12 @@ class ConfigFlow(
     """Config flow for Nest Protect."""
 
     VERSION = 5
-
     DOMAIN = NEST_PROTECT_DOMAIN
 
     _config_entry: ConfigEntry | None = None
 
     def __init__(self) -> None:
         """Initialize the config flow."""
-
         self._client_id: str | None = None
         self._client_secret: str | None = None
         self._implementation_domain: str | None = None
@@ -41,14 +39,12 @@ class ConfigFlow(
     @property
     def logger(self):
         """Return the logger to use for the flow."""
-
         return LOGGER
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         """Handle the initial step with guidance."""
-
         self._config_entry = None
 
         if user_input is not None:
@@ -56,6 +52,7 @@ class ConfigFlow(
 
         description_placeholders: dict[str, Any] = {}
 
+        # Wir versuchen zuerst die externe URL (DuckDNS, eigene Domain oder Nabu Casa Remote URL)
         try:
             external_url = get_url(
                 self.hass,
@@ -69,8 +66,11 @@ class ConfigFlow(
         if external_url:
             redirect_uri_example = f"{external_url.rstrip('/')}/auth/external/callback"
         else:
+            # Fallback-Beispiel, falls keine externe URL konfiguriert ist
             redirect_uri_example = "https://myha.duckdns.org:8123/auth/external/callback"
 
+        # Diese Placeholder kannst du im strings.json als Hinweis anzeigen lassen:
+        # "Trage diese URL in der Google Cloud Console als 'Autorisierte Weiterleitungs-URI' ein"
         description_placeholders["redirect_uri_example"] = redirect_uri_example
 
         return self.async_show_form(
@@ -83,7 +83,6 @@ class ConfigFlow(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         """Collect the OAuth client credentials."""
-
         errors: dict[str, str] = {}
 
         if user_input is not None:
@@ -99,7 +98,9 @@ class ConfigFlow(
             if not errors:
                 self._client_id = client_id
                 self._client_secret = client_secret
+
                 if not self._implementation_domain:
+                    # Wir erzeugen eine eigene OAuth-Implementation pro ConfigEntry
                     self._implementation_domain = (
                         f"{self.DOMAIN}_{uuid.uuid4().hex}"
                     )
@@ -117,7 +118,7 @@ class ConfigFlow(
 
                 return await self.async_step_auth()
 
-        defaults = {}
+        defaults: dict[str, Any] = {}
         if self._client_id:
             defaults["client_id"] = self._client_id
         if self._client_secret:
@@ -145,7 +146,6 @@ class ConfigFlow(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         """Handle re-authentication of an existing entry."""
-
         entry_id = self.context.get("entry_id")
         self._config_entry = (
             self.hass.config_entries.async_get_entry(entry_id)
@@ -168,26 +168,28 @@ class ConfigFlow(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         """Handle the OAuth authorization step and log common errors."""
-
         try:
             return await super().async_step_auth(user_input)
         except config_entry_oauth2_flow.OAuthError as err:
             error_reason = err.error or "oauth_error"
             if error_reason == "redirect_uri_mismatch":
                 LOGGER.warning(
-                    "Google OAuth Fehler redirect_uri_mismatch. Prüfe, ob die externe URL "
-                    "von Home Assistant exakt mit der autorisierten Weiterleitungs-URI in der "
-                    "Google Cloud Console übereinstimmt, inklusive /auth/external/callback."
+                    "Google OAuth Fehler redirect_uri_mismatch. "
+                    "Die Redirect-URL, die Google aufruft, stimmt nicht mit der in der "
+                    "Google Cloud Console hinterlegten autorisierten Weiterleitungs-URI überein. "
+                    "Wichtig: Trage deine eigene externe Home Assistant URL mit /auth/external/callback "
+                    "ein (z. B. https://DEINE-INSTANCE.ui.nabu.casa/auth/external/callback)."
                 )
             else:
                 LOGGER.warning(
-                    "Google OAuth Fehler %s. Beschreibung: %s", error_reason, err.description
+                    "Google OAuth Fehler %s. Beschreibung: %s",
+                    error_reason,
+                    err.description,
                 )
             raise
 
     async def async_oauth_create_entry(self, data: dict[str, Any]) -> FlowResult:
         """Finalize the OAuth flow and create/update the config entry."""
-
         session = async_create_clientsession(self.hass)
         client = NestClient(session=session, environment=DEFAULT_NEST_ENVIRONMENT)
 
