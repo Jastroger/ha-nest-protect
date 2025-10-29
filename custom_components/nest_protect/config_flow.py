@@ -10,6 +10,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers import config_entry_oauth2_flow
 from homeassistant.helpers.aiohttp_client import async_create_clientsession
+from homeassistant.helpers.network import NoURLAvailableError, get_url
 import voluptuous as vol
 
 from .const import DOMAIN as NEST_PROTECT_DOMAIN, LOGGER
@@ -53,25 +54,29 @@ class ConfigFlow(
         if user_input is not None:
             return await self.async_step_credentials()
 
-        description_intro = (
-            "Bevor wir Nest Protect verbinden, musst du einen eigenen OAuth 2.0-Client in der Google Cloud Console anlegen.\n\n"
-            "1. Rufe https://console.cloud.google.com auf und melde dich an.\n"
-            "2. Erzeuge ein neues Projekt oder wähle ein existierendes.\n"
-            "3. Richte unter OAuth-Zustimmungsbildschirm den Typ Extern ein und füge deine eigene Mailadresse als Testnutzer hinzu.\n"
-            "4. Lege unter Anmeldedaten → OAuth-Client-ID erstellen einen Client vom Typ Webanwendung an.\n"
-            "5. Trage bei Autorisierte Weiterleitungs-URIs exakt die URL deines Home Assistant gefolgt von /auth/external/callback ein.\n"
-            "   Diese URL muss mit deiner externen URL in Home Assistant übereinstimmen (Einstellungen → System → Netzwerk → Externe URL).\n"
-            "   Beispiele:\n"
-            "   https://deinname.ui.nabu.casa/auth/external/callback\n"
-            "   https://meinha.duckdns.org:8123/auth/external/callback\n"
-            "6. Kopiere die erzeugte Client-ID und den Client-Schlüssel (Secret).\n"
-            "7. Klicke Weiter und gib diese Werte im nächsten Schritt hier ein."
-        )
+        description_placeholders: dict[str, Any] = {}
+
+        try:
+            external_url = get_url(
+                self.hass,
+                prefer_external=True,
+                allow_internal=False,
+                allow_ip=False,
+            )
+        except NoURLAvailableError:
+            external_url = None
+
+        if external_url:
+            redirect_uri_example = f"{external_url.rstrip('/')}/auth/external/callback"
+        else:
+            redirect_uri_example = "https://myha.duckdns.org:8123/auth/external/callback"
+
+        description_placeholders["redirect_uri_example"] = redirect_uri_example
 
         return self.async_show_form(
-            step_id="intro",
-            description=description_intro,
+            step_id="user",
             data_schema=vol.Schema({}),
+            description_placeholders=description_placeholders,
         )
 
     async def async_step_credentials(
