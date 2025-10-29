@@ -6,26 +6,26 @@ from typing import Any
 import voluptuous as vol
 
 from homeassistant import config_entries
-from homeassistant.core import HomeAssistant
 
 from .const import DOMAIN, LOGGER
-from .oauth import NestOAuthClient
+from .pynest.oauth import NestOAuthClient
 from .pynest.client import NestClient
 from .pynest.exceptions import PynestException
 
 
 class NestProtectFlow(config_entries.ConfigFlow, domain=DOMAIN):
-    """Handle a config flow for Nest Protect."""
+    """Handle the config flow for Nest Protect."""
 
     VERSION = 1
 
     def __init__(self) -> None:
         self._client_id: str | None = None
         self._client_secret: str | None = None
+        # Wir nutzen https://www.google.com als Redirect-URI, weil du sie schon so in der Google Cloud Console eingetragen hast
         self._redirect_uri: str = "https://www.google.com"
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None):
-        """Step 1: ask for Google OAuth client_id and client_secret."""
+        """Step 1: ask for OAuth client credentials."""
         errors: dict[str, str] = {}
 
         if user_input is not None:
@@ -40,40 +40,42 @@ class NestProtectFlow(config_entries.ConfigFlow, domain=DOMAIN):
             }
         )
 
-        # Wir liefern description_placeholders, damit dein UI-Text mit
-        # {redirect_uri_example} nicht mehr Warning spammt.
-        example_redirect = f"{self._redirect_uri}"
-
+        # wir setzen redirect_uri_example, damit HA nicht mehr im Frontend meckert
         return self.async_show_form(
             step_id="user",
             data_schema=data_schema,
             errors=errors,
             description_placeholders={
-                "redirect_uri_example": example_redirect,
+                "redirect_uri_example": f"{self._redirect_uri}",
             },
         )
 
     async def async_step_auth(self, user_input: dict[str, Any] | None = None):
-        """Step 2: ask for the authorization code and exchange for tokens."""
+        """Step 2: ask for the auth code (from the browser URL) and exchange it."""
         errors: dict[str, str] = {}
 
         if user_input is not None:
             auth_code = user_input["auth_code"].strip()
 
+            # baue HTTP-Session
             session = self.hass.helpers.aiohttp_client.async_get_clientsession()
+
+            # OAuth-Client (holt access_token / refresh_token)
             oauth = NestOAuthClient(
-                session,
-                self._client_id,
-                self._client_secret,
-                self._redirect_uri,
+                session=session,
+                client_id=self._client_id,
+                client_secret=self._client_secret,
+                redirect_uri=self._redirect_uri,
             )
 
             try:
                 tokens = await oauth.exchange_code(auth_code)
+
+                # Test-Authentifizierung beim NestClient
                 client = NestClient(session)
                 await client.authenticate(tokens["access_token"])
 
-                # kein fetch_devices() hier -> das macht später __init__.py beim Setup
+                # Entry anlegen. Wir speichern, was wir später in __init__.py brauchen.
                 return self.async_create_entry(
                     title="Nest Protect",
                     data={
@@ -88,6 +90,9 @@ class NestProtectFlow(config_entries.ConfigFlow, domain=DOMAIN):
             except PynestException as err:
                 LOGGER.error("Nest authenticate failed during flow: %s", err)
                 errors["base"] = "auth_failed"
+            except Exception as err:  # irgendwas komplett Unerwartetes
+                LOGGER.exception("Unexpected error during Nest Protect flow: %s", err)
+                errors["base"] = "unknown"
 
         data_schema = vol.Schema(
             {
@@ -103,12 +108,12 @@ class NestProtectFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
 
 async def async_get_options_flow(config_entry: config_entries.ConfigEntry):
-    """Return an empty options flow."""
+    """Return an options flow handler."""
     return OptionsFlowHandler(config_entry)
 
 
 class OptionsFlowHandler(config_entries.OptionsFlow):
-    """Handle options flow for Nest Protect."""
+    """Options flow for Nest Protect (currently empty)."""
 
     def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
         self.config_entry = config_entry
