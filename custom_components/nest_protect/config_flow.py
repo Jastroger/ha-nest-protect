@@ -10,6 +10,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers import config_entry_oauth2_flow
 from homeassistant.helpers.aiohttp_client import async_create_clientsession
+from homeassistant.helpers.network import NoURLAvailableError, get_url
 import voluptuous as vol
 
 from .const import DOMAIN as NEST_PROTECT_DOMAIN, LOGGER
@@ -53,9 +54,29 @@ class ConfigFlow(
         if user_input is not None:
             return await self.async_step_credentials()
 
+        description_placeholders: dict[str, Any] = {}
+
+        try:
+            external_url = get_url(
+                self.hass,
+                prefer_external=True,
+                allow_internal=False,
+                allow_ip=False,
+            )
+        except NoURLAvailableError:
+            external_url = None
+
+        if external_url:
+            redirect_uri_example = f"{external_url.rstrip('/')}/auth/external/callback"
+        else:
+            redirect_uri_example = "https://myha.duckdns.org:8123/auth/external/callback"
+
+        description_placeholders["redirect_uri_example"] = redirect_uri_example
+
         return self.async_show_form(
-            step_id="intro",
+            step_id="user",
             data_schema=vol.Schema({}),
+            description_placeholders=description_placeholders,
         )
 
     async def async_step_credentials(
