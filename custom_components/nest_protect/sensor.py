@@ -1,192 +1,50 @@
-"""Sensor platform for Nest Protect."""
+"""Sensor platform for Nest Protect (legacy)."""
 
 from __future__ import annotations
 
-from collections.abc import Callable
-from dataclasses import dataclass
-import datetime
-from typing import Any
-
-from homeassistant.components.sensor import (
-    SensorDeviceClass,
-    SensorEntity,
-    SensorEntityDescription,
-    SensorStateClass,
-)
-from homeassistant.const import PERCENTAGE, UnitOfTemperature
-from homeassistant.helpers.entity import EntityCategory
-from homeassistant.helpers.typing import StateType
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.components.sensor import SensorEntity
 
 from . import HomeAssistantNestProtectData
-from .const import DOMAIN
-from .entity import NestDescriptiveEntity
-from .pynest.enums import BucketType
+from .const import DOMAIN, LOGGER
 
 
-def milli_volt_to_percentage(state: int | None) -> int | None:
-    """
-    Convert battery level in mV to a percentage.
-
-    The battery life percentage in devices is estimated using slopes from the L91 battery's datasheet.
-    This is a rough estimation, and the battery life percentage is not linear.
-
-    Tests on various devices have shown accurate results.
-    """
-    if state is None:
-        return None
-
-    if 3000 < state <= 6000:
-        if 4950 < state <= 6000:
-            slope = 0.001816609
-            yint = -8.548096886
-        elif 4800 < state <= 4950:
-            slope = 0.000291667
-            yint = -0.991176471
-        elif 4500 < state <= 4800:
-            slope = 0.001077342
-            yint = -4.730392157
-        else:
-            slope = 0.000434641
-            yint = -1.825490196
-
-        return max(0, min(100, round(((slope * state) + yint) * 100)))
-
-    return None
-
-
-def _datetime_from_timestamp(timestamp: Any) -> datetime.datetime | None:
-    """Convert a timestamp to a UTC datetime, handling missing values."""
-
-    if not timestamp:
-        return None
-
-    try:
-        return datetime.datetime.utcfromtimestamp(timestamp)
-    except (OSError, OverflowError, TypeError, ValueError):
-        return None
-
-
-def _round_temperature(value: Any) -> float | None:
-    """Round a numeric temperature if present."""
-
-    if value is None:
-        return None
-
-    try:
-        return round(float(value), 2)
-    except (TypeError, ValueError):
-        return None
-
-
-@dataclass
-class NestProtectSensorDescription(SensorEntityDescription):
-    """Class to describe an Nest Protect sensor."""
-
-    value_fn: Callable[[Any], Any] | None = None
-    bucket_type: BucketType | None = (
-        None  # used to filter out sensors that are not supported by the device
-    )
-
-
-SENSOR_DESCRIPTIONS: list[NestProtectSensorDescription] = [
-    NestProtectSensorDescription(
-        key="battery_level",
-        name="Battery Level",
-        device_class=SensorDeviceClass.BATTERY,
-        native_unit_of_measurement=PERCENTAGE,
-        entity_category=EntityCategory.DIAGNOSTIC,
-        bucket_type=BucketType.KRYPTONITE,
-        state_class=SensorStateClass.MEASUREMENT,
-    ),
-    # TODO Due to duplicate keys, this sensor is not available yet
-    # NestProtectSensorDescription(
-    #     key="battery_level",
-    #     name="Battery Voltage",
-    #     value_fn=lambda state: round(state / 1000, 3),
-    #     device_class=SensorDeviceClass.BATTERY,
-    #     native_unit_of_measurement=UnitOfElectricPotential.VOLT,
-    #     entity_category=EntityCategory.DIAGNOSTIC,
-    #     bucket_type=BucketType.TOPAZ,
-    # ),
-    NestProtectSensorDescription(
-        key="battery_level",
-        name="Battery Level",
-        value_fn=milli_volt_to_percentage,
-        device_class=SensorDeviceClass.BATTERY,
-        native_unit_of_measurement=PERCENTAGE,
-        entity_category=EntityCategory.DIAGNOSTIC,
-        bucket_type=BucketType.TOPAZ,
-        state_class=SensorStateClass.MEASUREMENT,
-    ),
-    NestProtectSensorDescription(
-        name="Replace By",
-        key="replace_by_date_utc_secs",
-        value_fn=_datetime_from_timestamp,
-        device_class=SensorDeviceClass.DATE,
-        entity_category=EntityCategory.DIAGNOSTIC,
-    ),
-    NestProtectSensorDescription(
-        name="Last Audio Self Test",
-        key="last_audio_self_test_end_utc_secs",
-        value_fn=_datetime_from_timestamp,
-        device_class=SensorDeviceClass.DATE,
-        entity_category=EntityCategory.DIAGNOSTIC,
-    ),
-    NestProtectSensorDescription(
-        name="Last Manual Test",
-        key="latest_manual_test_end_utc_secs",
-        value_fn=_datetime_from_timestamp,
-        device_class=SensorDeviceClass.DATE,
-        entity_category=EntityCategory.DIAGNOSTIC,
-    ),
-    NestProtectSensorDescription(
-        name="Temperature",
-        key="current_temperature",
-        value_fn=_round_temperature,
-        device_class=SensorDeviceClass.TEMPERATURE,
-        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
-        state_class=SensorStateClass.MEASUREMENT,
-    ),
-    # TODO Add Color Status (gray, green, yellow, red)
-    # TODO Smoke Status (OK, Warning, Emergency)
-    # TODO CO Status (OK, Warning, Emergency)
-]
-
-
-async def async_setup_entry(hass, entry, async_add_devices):
-    """Set up the Nest Protect sensors from a config entry."""
-
+async def async_setup_entry(hass, entry, async_add_entities: AddEntitiesCallback):
     data: HomeAssistantNestProtectData = hass.data[DOMAIN][entry.entry_id]
-    entities: list[NestProtectSensor] = []
+    devices = data.devices or {}
+    entities = []
 
-    for device in data.devices.values():
+    if isinstance(devices, dict):
+        devs = devices.get("devices", []) or []
+    else:
+        devs = devices or []
 
-        SUPPORTED_KEYS: dict[str, NestProtectSensorDescription] = {
-            description.key: description
-            for description in SENSOR_DESCRIPTIONS
-            if (not description.bucket_type or device.type == description.bucket_type)
-        }
+    for dev in devs:
+        if dev.get("traits", {}).get("sdm.devices.traits.Temperature") or dev.get("traits", {}).get("sdm.devices.traits.SensorState"):
+            entities.append(SimpleNestSensor(data, dev))
 
-        for key in device.value:
-            if description := SUPPORTED_KEYS.get(key):
-                entities.append(
-                    NestProtectSensor(device, description, data.areas, data.client)
-                )
-
-    async_add_devices(entities)
+    async_add_entities(entities)
 
 
-class NestProtectSensor(NestDescriptiveEntity, SensorEntity):
-    """Representation of a Nest Protect Sensor."""
-
-    entity_description: NestProtectSensorDescription
+class SimpleNestSensor(SensorEntity):
+    def __init__(self, integration_data: HomeAssistantNestProtectData, device: dict):
+        self._integration_data = integration_data
+        self._device = device
+        self._name = f"{device.get('customName') or device.get('name')} Battery"
+        self._unique_id = f"{device.get('name')}_battery"
 
     @property
-    def native_value(self) -> Any:
-        """Return the state of the sensor."""
-        state = self.bucket.value.get(self.entity_description.key)
+    def name(self):
+        return self._name
 
-        if self.entity_description.value_fn:
-            return self.entity_description.value_fn(state)
+    @property
+    def unique_id(self):
+        return self._unique_id
 
-        return state
+    @property
+    def state(self):
+        traits = self._device.get("traits", {})
+        batt = traits.get("sdm.devices.traits.Battery")
+        if batt:
+            return batt.get("batteryHealth", batt.get("level"))
+        return None
