@@ -22,7 +22,7 @@ from .entity import NestDescriptiveEntity
 class NestProtectBinarySensorDescriptionMixin:
     """Define an entity description mixin for binary sensor entities."""
 
-    value_fn: Callable[[Any], bool]
+    value_fn: Callable[[Any], bool | None]
 
 
 @dataclass
@@ -34,24 +34,51 @@ class NestProtectBinarySensorDescription(
     wired_only: bool = False
 
 
+def _state_not_zero(state: Any) -> bool | None:
+    """Return True when the state is a non-zero value."""
+
+    if state is None:
+        return None
+
+    return state != 0
+
+
+def _state_is_false(state: Any) -> bool | None:
+    """Return True when the state evaluates to False."""
+
+    if state is None:
+        return None
+
+    return not bool(state)
+
+
+def _bool_or_none(state: Any) -> bool | None:
+    """Return a boolean representation of the state when available."""
+
+    if state is None:
+        return None
+
+    return bool(state)
+
+
 BINARY_SENSOR_DESCRIPTIONS: list[BinarySensorEntityDescription] = [
     NestProtectBinarySensorDescription(
         key="co_status",
         name="CO Status",
         device_class=BinarySensorDeviceClass.CO,
-        value_fn=lambda state: state != 0,
+        value_fn=_state_not_zero,
     ),
     NestProtectBinarySensorDescription(
         key="smoke_status",
         name="Smoke Status",
         device_class=BinarySensorDeviceClass.SMOKE,
-        value_fn=lambda state: state != 0,
+        value_fn=_state_not_zero,
     ),
     NestProtectBinarySensorDescription(
         key="heat_status",
         name="Heat Status",
         device_class=BinarySensorDeviceClass.HEAT,
-        value_fn=lambda state: state != 0,
+        value_fn=_state_not_zero,
     ),
     NestProtectBinarySensorDescription(
         key="component_speaker_test_passed",
@@ -59,21 +86,21 @@ BINARY_SENSOR_DESCRIPTIONS: list[BinarySensorEntityDescription] = [
         device_class=BinarySensorDeviceClass.PROBLEM,
         entity_category=EntityCategory.DIAGNOSTIC,
         icon="mdi:speaker-wireless",
-        value_fn=lambda state: not state,
+        value_fn=_state_is_false,
     ),
     NestProtectBinarySensorDescription(
         key="battery_health_state",
         name="Battery Health",
         device_class=BinarySensorDeviceClass.BATTERY,
         entity_category=EntityCategory.DIAGNOSTIC,
-        value_fn=lambda state: state,
+        value_fn=_bool_or_none,
     ),
     NestProtectBinarySensorDescription(
         key="is_online",
         name="Online",
         device_class=BinarySensorDeviceClass.CONNECTIVITY,
         entity_category=EntityCategory.DIAGNOSTIC,
-        value_fn=lambda state: state,
+        value_fn=_bool_or_none,
     ),
     NestProtectBinarySensorDescription(
         key="component_smoke_test_passed",
@@ -81,7 +108,7 @@ BINARY_SENSOR_DESCRIPTIONS: list[BinarySensorEntityDescription] = [
         device_class=BinarySensorDeviceClass.PROBLEM,
         entity_category=EntityCategory.DIAGNOSTIC,
         icon="mdi:smoke",
-        value_fn=lambda state: not state,
+        value_fn=_state_is_false,
     ),
     NestProtectBinarySensorDescription(
         key="component_co_test_passed",
@@ -89,7 +116,7 @@ BINARY_SENSOR_DESCRIPTIONS: list[BinarySensorEntityDescription] = [
         device_class=BinarySensorDeviceClass.PROBLEM,
         entity_category=EntityCategory.DIAGNOSTIC,
         icon="mdi:molecule-co",
-        value_fn=lambda state: not state,
+        value_fn=_state_is_false,
     ),
     NestProtectBinarySensorDescription(
         key="component_wifi_test_passed",
@@ -97,7 +124,7 @@ BINARY_SENSOR_DESCRIPTIONS: list[BinarySensorEntityDescription] = [
         device_class=BinarySensorDeviceClass.PROBLEM,
         entity_category=EntityCategory.DIAGNOSTIC,
         icon="mdi:wifi",
-        value_fn=lambda state: not state,
+        value_fn=_state_is_false,
     ),
     NestProtectBinarySensorDescription(
         key="component_led_test_passed",
@@ -105,7 +132,7 @@ BINARY_SENSOR_DESCRIPTIONS: list[BinarySensorEntityDescription] = [
         device_class=BinarySensorDeviceClass.PROBLEM,
         entity_category=EntityCategory.DIAGNOSTIC,
         icon="mdi:led-off",
-        value_fn=lambda state: not state,
+        value_fn=_state_is_false,
     ),
     NestProtectBinarySensorDescription(
         key="component_pir_test_passed",
@@ -113,7 +140,7 @@ BINARY_SENSOR_DESCRIPTIONS: list[BinarySensorEntityDescription] = [
         device_class=BinarySensorDeviceClass.PROBLEM,
         entity_category=EntityCategory.DIAGNOSTIC,
         icon="mdi:run",
-        value_fn=lambda state: not state,
+        value_fn=_state_is_false,
     ),
     NestProtectBinarySensorDescription(
         key="component_buzzer_test_passed",
@@ -121,7 +148,7 @@ BINARY_SENSOR_DESCRIPTIONS: list[BinarySensorEntityDescription] = [
         device_class=BinarySensorDeviceClass.PROBLEM,
         entity_category=EntityCategory.DIAGNOSTIC,
         icon="mdi:alarm-bell",
-        value_fn=lambda state: not state,
+        value_fn=_state_is_false,
     ),
     # Disabled for now, since it seems like this state is not valid
     # NestProtectBinarySensorDescription(
@@ -138,7 +165,7 @@ BINARY_SENSOR_DESCRIPTIONS: list[BinarySensorEntityDescription] = [
         device_class=BinarySensorDeviceClass.PROBLEM,
         entity_category=EntityCategory.DIAGNOSTIC,
         icon="mdi:water-percent",
-        value_fn=lambda state: not state,
+        value_fn=_state_is_false,
     ),
     NestProtectBinarySensorDescription(
         key="removed_from_base",
@@ -146,14 +173,14 @@ BINARY_SENSOR_DESCRIPTIONS: list[BinarySensorEntityDescription] = [
         device_class=BinarySensorDeviceClass.PROBLEM,
         entity_category=EntityCategory.DIAGNOSTIC,
         icon="mdi:tray-remove",
-        value_fn=lambda state: state,
+        value_fn=_bool_or_none,
     ),
     NestProtectBinarySensorDescription(
         key="auto_away",
         name="Occupancy",
         device_class=BinarySensorDeviceClass.OCCUPANCY,
         wired_only=True,
-        value_fn=lambda state: not state,
+        value_fn=_state_is_false,
     ),
     NestProtectBinarySensorDescription(
         key="line_power_present",
@@ -161,7 +188,7 @@ BINARY_SENSOR_DESCRIPTIONS: list[BinarySensorEntityDescription] = [
         device_class=BinarySensorDeviceClass.POWER,
         entity_category=EntityCategory.DIAGNOSTIC,
         wired_only=True,
-        value_fn=lambda state: state,
+        value_fn=_bool_or_none,
     ),
 ]
 
@@ -198,7 +225,7 @@ class NestProtectBinarySensor(NestDescriptiveEntity, BinarySensorEntity):
     entity_description: NestProtectBinarySensorDescription
 
     @property
-    def is_on(self) -> bool:
+    def is_on(self) -> bool | None:
         """Return the state of the sensor."""
         state = self.bucket.value.get(self.entity_description.key)
         return self.entity_description.value_fn(state)

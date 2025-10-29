@@ -23,7 +23,7 @@ from .entity import NestDescriptiveEntity
 from .pynest.enums import BucketType
 
 
-def milli_volt_to_percentage(state: int):
+def milli_volt_to_percentage(state: int | None) -> int | None:
     """
     Convert battery level in mV to a percentage.
 
@@ -32,6 +32,9 @@ def milli_volt_to_percentage(state: int):
 
     Tests on various devices have shown accurate results.
     """
+    if state is None:
+        return None
+
     if 3000 < state <= 6000:
         if 4950 < state <= 6000:
             slope = 0.001816609
@@ -51,11 +54,35 @@ def milli_volt_to_percentage(state: int):
     return None
 
 
+def _datetime_from_timestamp(timestamp: Any) -> datetime.datetime | None:
+    """Convert a timestamp to a UTC datetime, handling missing values."""
+
+    if not timestamp:
+        return None
+
+    try:
+        return datetime.datetime.utcfromtimestamp(timestamp)
+    except (OSError, OverflowError, TypeError, ValueError):
+        return None
+
+
+def _round_temperature(value: Any) -> float | None:
+    """Round a numeric temperature if present."""
+
+    if value is None:
+        return None
+
+    try:
+        return round(float(value), 2)
+    except (TypeError, ValueError):
+        return None
+
+
 @dataclass
 class NestProtectSensorDescription(SensorEntityDescription):
     """Class to describe an Nest Protect sensor."""
 
-    value_fn: Callable[[Any], StateType] | None = None
+    value_fn: Callable[[Any], Any] | None = None
     bucket_type: BucketType | None = (
         None  # used to filter out sensors that are not supported by the device
     )
@@ -84,7 +111,7 @@ SENSOR_DESCRIPTIONS: list[NestProtectSensorDescription] = [
     NestProtectSensorDescription(
         key="battery_level",
         name="Battery Level",
-        value_fn=lambda state: milli_volt_to_percentage(state),
+        value_fn=milli_volt_to_percentage,
         device_class=SensorDeviceClass.BATTERY,
         native_unit_of_measurement=PERCENTAGE,
         entity_category=EntityCategory.DIAGNOSTIC,
@@ -94,28 +121,28 @@ SENSOR_DESCRIPTIONS: list[NestProtectSensorDescription] = [
     NestProtectSensorDescription(
         name="Replace By",
         key="replace_by_date_utc_secs",
-        value_fn=lambda state: datetime.datetime.utcfromtimestamp(state),
+        value_fn=_datetime_from_timestamp,
         device_class=SensorDeviceClass.DATE,
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
     NestProtectSensorDescription(
         name="Last Audio Self Test",
         key="last_audio_self_test_end_utc_secs",
-        value_fn=lambda state: datetime.datetime.utcfromtimestamp(state),
+        value_fn=_datetime_from_timestamp,
         device_class=SensorDeviceClass.DATE,
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
     NestProtectSensorDescription(
         name="Last Manual Test",
         key="latest_manual_test_end_utc_secs",
-        value_fn=lambda state: datetime.datetime.utcfromtimestamp(state),
+        value_fn=_datetime_from_timestamp,
         device_class=SensorDeviceClass.DATE,
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
     NestProtectSensorDescription(
         name="Temperature",
         key="current_temperature",
-        value_fn=lambda state: round(state, 2),
+        value_fn=_round_temperature,
         device_class=SensorDeviceClass.TEMPERATURE,
         native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         state_class=SensorStateClass.MEASUREMENT,
@@ -155,7 +182,7 @@ class NestProtectSensor(NestDescriptiveEntity, SensorEntity):
     entity_description: NestProtectSensorDescription
 
     @property
-    def native_value(self) -> bool:
+    def native_value(self) -> Any:
         """Return the state of the sensor."""
         state = self.bucket.value.get(self.entity_description.key)
 
