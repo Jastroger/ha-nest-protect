@@ -2,32 +2,40 @@
 
 from __future__ import annotations
 
+import uuid
 from typing import Any
 
 from aiohttp import ClientError
-from homeassistant.helpers import config_entry_oauth2_flow
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.data_entry_flow import FlowResult
+from homeassistant.helpers import config_entry_oauth2_flow
 from homeassistant.helpers.aiohttp_client import async_create_clientsession
 import voluptuous as vol
 
-from .const import CONF_ACCOUNT_TYPE, DOMAIN as NEST_PROTECT_DOMAIN, LOGGER
-from .oauth import async_ensure_oauth_implementation
+from .const import DOMAIN as NEST_PROTECT_DOMAIN, LOGGER
+from .oauth import NestOAuth2Implementation
 from .pynest.client import NestClient
-from .pynest.const import NEST_ENVIRONMENTS
-from .pynest.enums import Environment
+from .pynest.const import DEFAULT_NEST_ENVIRONMENT
 from .pynest.exceptions import BadCredentialsException, PynestException
 
 
-class ConfigFlow(config_entry_oauth2_flow.AbstractOAuth2FlowHandler, domain=NEST_PROTECT_DOMAIN):
+class ConfigFlow(
+    config_entry_oauth2_flow.AbstractOAuth2FlowHandler, domain=NEST_PROTECT_DOMAIN
+):
     """Config flow for Nest Protect."""
 
-    VERSION = 4
+    VERSION = 5
 
     DOMAIN = NEST_PROTECT_DOMAIN
 
     _config_entry: ConfigEntry | None = None
-    _default_account_type: Environment = Environment.PRODUCTION
+
+    def __init__(self) -> None:
+        """Initialize the config flow."""
+
+        self._client_id: str | None = None
+        self._client_secret: str | None = None
+        self._implementation_domain: str | None = None
 
     @property
     def logger(self):
@@ -35,41 +43,102 @@ class ConfigFlow(config_entry_oauth2_flow.AbstractOAuth2FlowHandler, domain=NEST
 
         return LOGGER
 
-    async def _async_register_implementation(self) -> None:
-        """Ensure the selected implementation is registered and set."""
-
-        implementation = await async_ensure_oauth_implementation(
-            self.hass, self._default_account_type
-        )
-        self.flow_impl = implementation
-
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
-        """Handle a flow initialized by the user."""
+        """Handle the initial step with guidance."""
 
         self._config_entry = None
 
-        if user_input is None:
-            return self.async_show_form(
-                step_id="user",
-                data_schema=vol.Schema(
-                    {
-                        vol.Required(
-                            CONF_ACCOUNT_TYPE, default=self._default_account_type
-                        ): vol.In(
-                            {key: env.name for key, env in NEST_ENVIRONMENTS.items()}
-                        )
-                    }
-                ),
-            )
+        if user_input is not None:
+            return await self.async_step_credentials()
 
-        self._default_account_type = Environment(user_input[CONF_ACCOUNT_TYPE])
-        await self._async_register_implementation()
+        description_intro = (
+            "Bevor wir Nest Protect verbinden, musst du einen eigenen OAuth 2.0-Client in der Google Cloud Console anlegen.\n\n"
+            "1. Rufe https://console.cloud.google.com auf und melde dich an.\n"
+            "2. Erzeuge ein neues Projekt oder wähle ein existierendes.\n"
+            "3. Richte unter OAuth-Zustimmungsbildschirm den Typ Extern ein und füge deine eigene Mailadresse als Testnutzer hinzu.\n"
+            "4. Lege unter Anmeldedaten → OAuth-Client-ID erstellen einen Client vom Typ Webanwendung an.\n"
+            "5. Trage bei Autorisierte Weiterleitungs-URIs exakt die URL deines Home Assistant gefolgt von /auth/external/callback ein.\n"
+            "   Diese URL muss mit deiner externen URL in Home Assistant übereinstimmen (Einstellungen → System → Netzwerk → Externe URL).\n"
+            "   Beispiele:\n"
+            "   https://deinname.ui.nabu.casa/auth/external/callback\n"
+            "   https://meinha.duckdns.org:8123/auth/external/callback\n"
+            "6. Kopiere die erzeugte Client-ID und den Client-Schlüssel (Secret).\n"
+            "7. Klicke Weiter und gib diese Werte im nächsten Schritt hier ein."
+        )
 
-        return await self.async_step_auth()
+        return self.async_show_form(
+            step_id="intro",
+            description=description_intro,
+            data_schema=vol.Schema({}),
+        )
 
-    async def async_step_reauth(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+    async def async_step_credentials(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Collect the OAuth client credentials."""
+
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            client_id = user_input.get("client_id", "").strip()
+            client_secret = user_input.get("client_secret", "").strip()
+
+            if not client_id:
+                errors["client_id"] = "required"
+
+            if not client_secret:
+                errors["client_secret"] = "required"
+
+            if not errors:
+                self._client_id = client_id
+                self._client_secret = client_secret
+                if not self._implementation_domain:
+                    self._implementation_domain = (
+                        f"{self.DOMAIN}_{uuid.uuid4().hex}"
+                    )
+
+                implementation = NestOAuth2Implementation(
+                    self.hass,
+                    self._implementation_domain,
+                    self._client_id,
+                    self._client_secret,
+                )
+                config_entry_oauth2_flow.async_register_implementation(
+                    self.hass, self.DOMAIN, implementation
+                )
+                self.flow_impl = implementation
+
+                return await self.async_step_auth()
+
+        defaults = {}
+        if self._client_id:
+            defaults["client_id"] = self._client_id
+        if self._client_secret:
+            defaults["client_secret"] = self._client_secret
+
+        data_schema = vol.Schema(
+            {
+                vol.Required(
+                    "client_id", default=defaults.get("client_id", vol.UNDEFINED)
+                ): str,
+                vol.Required(
+                    "client_secret",
+                    default=defaults.get("client_secret", vol.UNDEFINED),
+                ): str,
+            }
+        )
+
+        return self.async_show_form(
+            step_id="credentials",
+            data_schema=data_schema,
+            errors=errors,
+        )
+
+    async def async_step_reauth(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
         """Handle re-authentication of an existing entry."""
 
         entry_id = self.context.get("entry_id")
@@ -82,19 +151,40 @@ class ConfigFlow(config_entry_oauth2_flow.AbstractOAuth2FlowHandler, domain=NEST
         if self._config_entry is None:
             return self.async_abort(reason="unknown")
 
-        self._default_account_type = Environment(
-            self._config_entry.data[CONF_ACCOUNT_TYPE]
+        self._client_id = self._config_entry.data.get("client_id")
+        self._client_secret = self._config_entry.data.get("client_secret")
+        self._implementation_domain = self._config_entry.data.get(
+            "auth_implementation"
         )
-        await self._async_register_implementation()
 
-        return await self.async_step_auth()
+        return await self.async_step_credentials(user_input)
 
-    async def async_oauth_create_entry(self, data: dict) -> FlowResult:
+    async def async_step_auth(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Handle the OAuth authorization step and log common errors."""
+
+        try:
+            return await super().async_step_auth(user_input)
+        except config_entry_oauth2_flow.OAuthError as err:
+            error_reason = err.error or "oauth_error"
+            if error_reason == "redirect_uri_mismatch":
+                LOGGER.warning(
+                    "Google OAuth Fehler redirect_uri_mismatch. Prüfe, ob die externe URL "
+                    "von Home Assistant exakt mit der autorisierten Weiterleitungs-URI in der "
+                    "Google Cloud Console übereinstimmt, inklusive /auth/external/callback."
+                )
+            else:
+                LOGGER.warning(
+                    "Google OAuth Fehler %s. Beschreibung: %s", error_reason, err.description
+                )
+            raise
+
+    async def async_oauth_create_entry(self, data: dict[str, Any]) -> FlowResult:
         """Finalize the OAuth flow and create/update the config entry."""
 
         session = async_create_clientsession(self.hass)
-        environment = NEST_ENVIRONMENTS[self._default_account_type]
-        client = NestClient(session=session, environment=environment)
+        client = NestClient(session=session, environment=DEFAULT_NEST_ENVIRONMENT)
 
         try:
             nest = await client.authenticate(data["token"]["access_token"])
@@ -118,8 +208,9 @@ class ConfigFlow(config_entry_oauth2_flow.AbstractOAuth2FlowHandler, domain=NEST
         await self.async_set_unique_id(nest.user)
 
         entry_data = {
-            CONF_ACCOUNT_TYPE: self._default_account_type,
-            "auth_implementation": data["auth_implementation"],
+            "client_id": self._client_id or "",
+            "client_secret": self._client_secret or "",
+            "auth_implementation": self.flow_impl.domain,
             "token": data["token"],
         }
 

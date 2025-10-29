@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
+import uuid
 from typing import Any
 
 from aiohttp import ClientConnectorError, ClientError, ServerDisconnectedError
@@ -14,21 +15,11 @@ from homeassistant.helpers.aiohttp_client import async_create_clientsession
 from homeassistant.helpers.device_registry import DeviceEntry
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 
-from .const import (
-    CONF_ACCOUNT_TYPE,
-    DOMAIN,
-    LOGGER,
-    PLATFORMS,
-)
-from .oauth import (
-    async_ensure_oauth_implementation,
-    async_get_nest_oauth_session,
-    async_token_from_refresh_token,
-    implementation_domain,
-)
+from .const import DOMAIN, LOGGER, PLATFORMS
+from .oauth import async_get_nest_oauth_session
 from .pynest.client import NestClient
-from .pynest.const import NEST_ENVIRONMENTS
-from .pynest.enums import BucketType, Environment
+from .pynest.const import DEFAULT_NEST_ENVIRONMENT
+from .pynest.enums import BucketType
 from .pynest.exceptions import (
     BadCredentialsException,
     EmptyResponseException,
@@ -49,33 +40,6 @@ class HomeAssistantNestProtectData:
     oauth_session: "NestProtectOAuth2Session"
 
 
-async def async_ensure_token_data(
-    hass: HomeAssistant, account_type: Environment | str, entry_data: dict[str, Any]
-) -> dict[str, Any]:
-    """Build token data for migrated entries."""
-
-    env = Environment(account_type)
-
-    await async_ensure_oauth_implementation(hass, env)
-
-    refresh_token = entry_data.get("refresh_token", "")
-    try:
-        token = (
-            await async_token_from_refresh_token(hass, env, refresh_token)
-            if refresh_token
-            else _empty_token(refresh_token)
-        )
-    except ConfigEntryAuthFailed:
-        LOGGER.debug("Failed to migrate refresh token for %s", env, exc_info=True)
-        token = _empty_token(refresh_token)
-
-    return {
-        CONF_ACCOUNT_TYPE: env,
-        "auth_implementation": implementation_domain(env),
-        "token": token,
-    }
-
-
 def _empty_token(refresh_token: str) -> dict[str, Any]:
     """Return an empty token payload to trigger re-auth."""
 
@@ -94,23 +58,30 @@ async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry):
     """Migrate old Config entries."""
     LOGGER.debug("Migrating from version %s", config_entry.version)
 
-    if config_entry.version == 1:
-        entry_data = {**config_entry.data}
-        entry_data[CONF_ACCOUNT_TYPE] = Environment.PRODUCTION
-
-        config_entry.data = {**entry_data}
-        config_entry.version = 2
-
-    if config_entry.version < 4:
+    if config_entry.version < 5:
         current_data = {**config_entry.data}
-        account_type = Environment(
-            current_data.get(CONF_ACCOUNT_TYPE, Environment.PRODUCTION)
-        )
+        token = current_data.get("token")
+        if not isinstance(token, dict):
+            refresh_token = current_data.get("refresh_token", "")
+            token = _empty_token(refresh_token)
 
-        implementation = await async_ensure_token_data(hass, account_type, current_data)
+        auth_domain = current_data.get("auth_implementation")
+        if not auth_domain:
+            auth_domain = f"{DOMAIN}_{uuid.uuid4().hex}"
+
+        new_data = {
+            "client_id": current_data.get("client_id", ""),
+            "client_secret": current_data.get("client_secret", ""),
+            "auth_implementation": auth_domain,
+            "token": token,
+        }
 
         hass.config_entries.async_update_entry(
-            config_entry, data=implementation, version=4
+            config_entry, data=new_data, version=5
+        )
+        LOGGER.warning(
+            "Die vorhandene Nest Protect Konfiguration wurde aktualisiert. Bitte starte die "
+            "Einrichtung erneut, damit eigene Google OAuth Zugangsdaten hinterlegt werden können."
         )
 
     LOGGER.debug("Migration to version %s successful", config_entry.version)
@@ -121,8 +92,17 @@ async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry):
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     """Set up Nest Protect from a config entry."""
     session = async_create_clientsession(hass)
-    account_type = Environment(entry.data[CONF_ACCOUNT_TYPE])
-    client = NestClient(session=session, environment=NEST_ENVIRONMENTS[account_type])
+    client_id = entry.data.get("client_id")
+    client_secret = entry.data.get("client_secret")
+
+    if not client_id or not client_secret:
+        LOGGER.warning(
+            "Fehlende Google OAuth Client-Daten im Konfigurationseintrag. Starte die "
+            "Nest Protect Einrichtung neu, um die Anmeldedaten zu hinterlegen."
+        )
+        raise ConfigEntryAuthFailed("missing_client_credentials")
+
+    client = NestClient(session=session, environment=DEFAULT_NEST_ENVIRONMENT)
 
     oauth_session = await async_get_nest_oauth_session(hass, entry)
 

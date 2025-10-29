@@ -6,13 +6,10 @@ from unittest.mock import AsyncMock, patch
 from aiohttp import ClientError
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.exceptions import ConfigEntryAuthFailed
-import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.nest_protect import async_migrate_entry
-from custom_components.nest_protect.const import CONF_ACCOUNT_TYPE, DOMAIN
-from custom_components.nest_protect.oauth import implementation_domain
-from custom_components.nest_protect.pynest.enums import Environment
+from custom_components.nest_protect.const import DOMAIN
 
 from .conftest import ComponentSetup
 
@@ -111,35 +108,19 @@ async def test_migrate_entry_with_refresh_token(hass):
 
     entry = MockConfigEntry(
         domain=DOMAIN,
-        data={CONF_ACCOUNT_TYPE: Environment.PRODUCTION, "refresh_token": "refresh"},
+        data={"refresh_token": "refresh"},
         version=3,
     )
     entry.add_to_hass(hass)
-    migrated_token = {
-        "access_token": "token",
-        "refresh_token": "refresh",
-        "token_type": "Bearer",
-        "scope": "scope",
-        "id_token": "id",  # optional
-        "expires_in": 60,
-        "expires_at": 123,
-    }
 
-    with patch(
-        "custom_components.nest_protect.async_ensure_oauth_implementation",
-        AsyncMock(),
-    ), patch(
-        "custom_components.nest_protect.async_token_from_refresh_token",
-        AsyncMock(return_value=migrated_token),
-    ):
+    with patch("uuid.uuid4", return_value=SimpleNamespace(hex="abcd")):
         assert await async_migrate_entry(hass, entry)
 
-    assert entry.version == 4
-    assert entry.data["token"] == migrated_token
-    assert (
-        entry.data["auth_implementation"]
-        == implementation_domain(Environment.PRODUCTION)
-    )
+    assert entry.version == 5
+    assert entry.data["client_id"] == ""
+    assert entry.data["client_secret"] == ""
+    assert entry.data["token"]["refresh_token"] == "refresh"
+    assert entry.data["auth_implementation"] == "nest_protect_abcd"
 
 
 async def test_migrate_entry_without_refresh_token(hass):
@@ -147,53 +128,16 @@ async def test_migrate_entry_without_refresh_token(hass):
 
     entry = MockConfigEntry(
         domain=DOMAIN,
-        data={CONF_ACCOUNT_TYPE: Environment.FIELDTEST},
+        data={},
         version=3,
     )
     entry.add_to_hass(hass)
 
-    with patch(
-        "custom_components.nest_protect.async_ensure_oauth_implementation",
-        AsyncMock(),
-    ):
+    with patch("uuid.uuid4", return_value=SimpleNamespace(hex="ef01")):
         assert await async_migrate_entry(hass, entry)
 
-    assert entry.version == 4
+    assert entry.version == 5
     token = entry.data["token"]
     assert token["access_token"] == ""
     assert token["refresh_token"] == ""
-    assert entry.data["auth_implementation"] == implementation_domain(
-        Environment.FIELDTEST
-    )
-
-
-async def test_migrate_entry_with_string_account_type(hass):
-    """Ensure migration handles string account type values."""
-
-    entry = MockConfigEntry(
-        domain=DOMAIN,
-        data={CONF_ACCOUNT_TYPE: "production", "refresh_token": "refresh"},
-        version=3,
-    )
-    entry.add_to_hass(hass)
-
-    with patch(
-        "custom_components.nest_protect.async_ensure_oauth_implementation",
-        AsyncMock(),
-    ), patch(
-        "custom_components.nest_protect.async_token_from_refresh_token",
-        AsyncMock(return_value={"access_token": "token", "refresh_token": "refresh"}),
-    ):
-        assert await async_migrate_entry(hass, entry)
-
-    assert entry.version == 4
-    assert entry.data[CONF_ACCOUNT_TYPE] is Environment.PRODUCTION
-
-
-def test_implementation_domain_accepts_string():
-    """Ensure the implementation domain helper handles string environments."""
-
-    assert (
-        implementation_domain("fieldtest")
-        == implementation_domain(Environment.FIELDTEST)
-    )
+    assert entry.data["auth_implementation"] == "nest_protect_ef01"

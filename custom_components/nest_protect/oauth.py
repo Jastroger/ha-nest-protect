@@ -14,26 +14,7 @@ from homeassistant.helpers import config_entry_oauth2_flow
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .const import DOMAIN, OAUTH_AUTHORIZE_URL, OAUTH_SCOPES
-from .pynest.const import NEST_ENVIRONMENTS, TOKEN_URL
-from .pynest.enums import Environment
-from .pynest.models import NestEnvironment
-
-
-def _coerce_environment(environment: Environment | str) -> Environment:
-    """Return an ``Environment`` instance for the provided value."""
-
-    if isinstance(environment, Environment):
-        return environment
-
-    return Environment(environment)
-
-
-def implementation_domain(environment: Environment | str) -> str:
-    """Return the config entry OAuth implementation domain."""
-
-    env = _coerce_environment(environment)
-
-    return f"{DOMAIN}_{env.value}"
+from .pynest.const import TOKEN_URL
 
 
 class NestOAuth2Implementation(config_entry_oauth2_flow.LocalOAuth2Implementation):
@@ -43,23 +24,25 @@ class NestOAuth2Implementation(config_entry_oauth2_flow.LocalOAuth2Implementatio
         self,
         hass: HomeAssistant,
         domain: str,
-        environment: NestEnvironment,
+        client_id: str,
+        client_secret: str,
+        name: str = "Nest Protect",
     ) -> None:
         super().__init__(
             hass,
             domain,
-            environment.client_id,
-            environment.client_secret or "",
+            client_id,
+            client_secret,
             OAUTH_AUTHORIZE_URL,
             TOKEN_URL,
         )
-        self._environment = environment
+        self._name = name
 
     @property
     def name(self) -> str:  # pragma: no cover - simple property
         """Return a friendly name for the implementation."""
 
-        return self._environment.name
+        return self._name
 
     @property
     def extra_authorize_data(self) -> dict[str, Any]:
@@ -73,28 +56,41 @@ class NestOAuth2Implementation(config_entry_oauth2_flow.LocalOAuth2Implementatio
         }
 
 
-async def async_ensure_oauth_implementation(
-    hass: HomeAssistant, environment: Environment | str
+async def async_ensure_implementation_from_entry(
+    hass: HomeAssistant, config_entry: ConfigEntry
 ) -> config_entry_oauth2_flow.AbstractOAuth2Implementation:
-    """Ensure that the OAuth implementation for the environment is registered."""
+    """Ensure that the OAuth implementation for a config entry is registered."""
 
-    env = _coerce_environment(environment)
-    domain = implementation_domain(env)
+    domain = config_entry.data.get("auth_implementation")
+    if not domain:
+        raise ConfigEntryAuthFailed("missing_auth_implementation")
+
     implementations = await config_entry_oauth2_flow.async_get_implementations(
         hass, DOMAIN
     )
 
-    if domain not in implementations:
-        environment_config = NEST_ENVIRONMENTS[env]
-        implementation = NestOAuth2Implementation(
-            hass, domain, environment_config
-        )
-        config_entry_oauth2_flow.async_register_implementation(
-            hass, DOMAIN, implementation
-        )
-        implementations = await config_entry_oauth2_flow.async_get_implementations(
-            hass, DOMAIN
-        )
+    if domain in implementations:
+        return implementations[domain]
+
+    client_id = cast(str | None, config_entry.data.get("client_id"))
+    client_secret = cast(str | None, config_entry.data.get("client_secret"))
+
+    if not client_id or not client_secret:
+        raise ConfigEntryAuthFailed("missing_client_credentials")
+
+    implementation = NestOAuth2Implementation(
+        hass,
+        domain,
+        client_id,
+        client_secret,
+    )
+    config_entry_oauth2_flow.async_register_implementation(
+        hass, DOMAIN, implementation
+    )
+
+    implementations = await config_entry_oauth2_flow.async_get_implementations(
+        hass, DOMAIN
+    )
 
     return implementations[domain]
 
@@ -141,28 +137,23 @@ async def async_get_nest_oauth_session(
 ) -> NestProtectOAuth2Session:
     """Create an OAuth session for the config entry."""
 
-    implementation = (
-        await config_entry_oauth2_flow.async_get_config_entry_implementation(
-            hass, config_entry
-        )
-    )
+    implementation = await async_ensure_implementation_from_entry(hass, config_entry)
 
     return NestProtectOAuth2Session(hass, config_entry, implementation)
 
 
 async def async_token_from_refresh_token(
-    hass: HomeAssistant, environment: Environment | str, refresh_token: str
+    hass: HomeAssistant, client_id: str, client_secret: str, refresh_token: str
 ) -> dict[str, Any]:
     """Build a token payload from a stored refresh token."""
 
-    env = NEST_ENVIRONMENTS[_coerce_environment(environment)]
     session = async_get_clientsession(hass)
     response = await session.post(
         TOKEN_URL,
         data={
             "refresh_token": refresh_token,
-            "client_id": env.client_id,
-            "client_secret": env.client_secret,
+            "client_id": client_id,
+            "client_secret": client_secret,
             "grant_type": "refresh_token",
         },
     )
@@ -178,6 +169,8 @@ async def async_token_from_refresh_token(
     payload.setdefault("refresh_token", refresh_token)
     expires_in = int(payload.get("expires_in", 0))
     payload["expires_in"] = expires_in
-    payload["expires_at"] = time.time() + expires_in
+    payload["expires_at"] = int(payload.get("expires_at", 0)) or (
+        int(time.time()) + expires_in
+    )
 
     return payload

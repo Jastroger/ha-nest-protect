@@ -1,17 +1,24 @@
 {
   "config": {
     "step": {
-      "user": {
-        "description": "Select your account type and follow the sign-in prompt to link Home Assistant with your Google account.",
+      "intro": {
+        "description": "Bevor wir Nest Protect verbinden, musst du einen eigenen OAuth 2.0-Client in der Google Cloud Console anlegen.\n\n1. Rufe https://console.cloud.google.com auf und melde dich an.\n2. Erzeuge ein neues Projekt oder wähle ein existierendes.\n3. Richte unter OAuth-Zustimmungsbildschirm den Typ Extern ein und füge deine eigene Mailadresse als Testnutzer hinzu.\n4. Lege unter Anmeldedaten → OAuth-Client-ID erstellen einen Client vom Typ Webanwendung an.\n5. Trage bei Autorisierte Weiterleitungs-URIs exakt die URL deines Home Assistant gefolgt von /auth/external/callback ein.\n   Diese URL muss mit deiner externen URL in Home Assistant übereinstimmen (Einstellungen → System → Netzwerk → Externe URL).\n   Beispiele:\n   https://deinname.ui.nabu.casa/auth/external/callback\n   https://meinha.duckdns.org:8123/auth/external/callback\n6. Kopiere die erzeugte Client-ID und den Client-Schlüssel (Secret).\n7. Klicke Weiter und gib diese Werte im nächsten Schritt hier ein.",
+        "title": "Nest Protect"
+      },
+      "credentials": {
+        "description": "Gib hier die Client-ID und den Client-Schlüssel ein, die du in der Google Cloud Console erstellt hast.",
         "data": {
-          "account_type": "Account Type"
-        }
+          "client_id": "Client-ID",
+          "client_secret": "Client-Schlüssel"
+        },
+        "title": "Google OAuth Anmeldedaten"
       }
     },
     "error": {
       "cannot_connect": "[%key:common::config_flow::error::cannot_connect%]",
       "invalid_auth": "[%key:common::config_flow::error::invalid_auth%]",
-      "unknown": "[%key:common::config_flow::error::unknown%]"
+      "unknown": "[%key:common::config_flow::error::unknown%]",
+      "required": "Dieses Feld darf nicht leer sein."
     },
     "abort": {
       "already_configured": "[%key:common::config_flow::abort::already_configured_account%]"
