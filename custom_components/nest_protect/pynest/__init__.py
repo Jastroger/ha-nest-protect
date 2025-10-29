@@ -1,6 +1,3 @@
-"""pynest subpackage for Nest Protect integration.
-
-This package contains low-level Nest / Google auth and data access helpers.
-"""
+"""pynest subpackage for Nest Protect integration."""
 
 from __future__ import annotations
