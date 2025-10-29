@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from aiohttp import ClientError
 from homeassistant.helpers import config_entry_oauth2_flow
 from homeassistant.config_entries import ConfigEntry
