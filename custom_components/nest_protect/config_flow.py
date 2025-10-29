@@ -10,7 +10,7 @@ import voluptuous as vol
 
 from .const import DOMAIN
 from .pynest.oauth import NestOAuthClient
-from .pynest.client import NestClient
+from .client import NestClient
 from .exceptions import PynestException
 
 _LOGGER = logging.getLogger(__name__)
