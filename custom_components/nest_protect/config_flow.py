@@ -53,24 +53,8 @@ class ConfigFlow(
         if user_input is not None:
             return await self.async_step_credentials()
 
-        description_intro = (
-            "Bevor wir Nest Protect verbinden, musst du einen eigenen OAuth 2.0-Client in der Google Cloud Console anlegen.\n\n"
-            "1. Rufe https://console.cloud.google.com auf und melde dich an.\n"
-            "2. Erzeuge ein neues Projekt oder wähle ein existierendes.\n"
-            "3. Richte unter OAuth-Zustimmungsbildschirm den Typ Extern ein und füge deine eigene Mailadresse als Testnutzer hinzu.\n"
-            "4. Lege unter Anmeldedaten → OAuth-Client-ID erstellen einen Client vom Typ Webanwendung an.\n"
-            "5. Trage bei Autorisierte Weiterleitungs-URIs exakt die URL deines Home Assistant gefolgt von /auth/external/callback ein.\n"
-            "   Diese URL muss mit deiner externen URL in Home Assistant übereinstimmen (Einstellungen → System → Netzwerk → Externe URL).\n"
-            "   Beispiele:\n"
-            "   https://deinname.ui.nabu.casa/auth/external/callback\n"
-            "   https://meinha.duckdns.org:8123/auth/external/callback\n"
-            "6. Kopiere die erzeugte Client-ID und den Client-Schlüssel (Secret).\n"
-            "7. Klicke Weiter und gib diese Werte im nächsten Schritt hier ein."
-        )
-
         return self.async_show_form(
             step_id="intro",
-            description=description_intro,
             data_schema=vol.Schema({}),
         )
 
