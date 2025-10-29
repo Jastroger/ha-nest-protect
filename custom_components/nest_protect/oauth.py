@@ -40,7 +40,7 @@ class NestOAuth2Implementation(config_entry_oauth2_flow.LocalOAuth2Implementatio
         self._name = name
 
     @property
-    def name(self) -> str:  # pragma: no cover - simple property
+    def name(self) -> str:
         """Return a friendly name for the implementation."""
         return self._name
 
@@ -49,14 +49,17 @@ class NestOAuth2Implementation(config_entry_oauth2_flow.LocalOAuth2Implementatio
         """
         Return the redirect URI.
 
-        Ziel:
-        - Wenn der User über seine echte externe URL (DuckDNS, eigene Domain, Nabu Casa Remote URL)
-          im Flow ist, benutzen wir GENAU diese Basis-URL + /auth/external/callback.
-        - Wir blocken nur den Spezialfall home-assistant.io (das ist der zentrale Nabu-Casa Relay-Flow,
-          den wir hier NICHT verwenden), aber NICHT mehr nabu.casa.
-        - Wenn wir nichts Gescheites erkennen, fallback auf das Verhalten von LocalOAuth2Implementation.
+        Idee:
+        - Wenn der Nutzer über eine echte externe URL kommt
+          (DuckDNS, eigene Domain, Nabu Casa Remote URL),
+          dann benutzen wir genau diese Basis + /auth/external/callback.
+        - Wir sperren nur den home-assistant.io Relay-Fall aus,
+          weil das die zentrale Nabu-Casa-Proxy-Infrastruktur ist,
+          die wir hier NICHT nutzen.
+        - nabu.casa ist jetzt erlaubt.
+        - Wenn nichts passt: Fallback auf das Standardverhalten
+          von LocalOAuth2Implementation.
         """
-
         request = config_entry_oauth2_flow.http.current_request.get()
         if request is not None:
             frontend_base = request.headers.get(
@@ -66,20 +69,16 @@ class NestOAuth2Implementation(config_entry_oauth2_flow.LocalOAuth2Implementatio
                 parsed = urlparse(frontend_base)
                 hostname = (parsed.hostname or "").lower()
 
-                # Wichtig: nabu.casa jetzt ERLAUBT.
-                # Wir sperren nur die zentrale my.home-assistant.io / home-assistant.io Variante aus,
-                # weil die einen externen Relay-Service erwartet, den wir hier nicht fahren.
                 if hostname and not hostname.endswith("home-assistant.io"):
                     base = frontend_base.rstrip("/")
                     if base:
                         return f"{base}{config_entry_oauth2_flow.AUTH_CALLBACK_PATH}"
 
-        # Fallback: Standard-LocalOAuth2Implementation-Redirect
         return super().redirect_uri
 
     @property
     def extra_authorize_data(self) -> dict[str, Any]:
-        """Return extra data that needs to be appended to the authorize url."""
+        """Return extra data that needs to be appended to the authorize URL."""
         return {
             "scope": " ".join(OAUTH_SCOPES),
             "access_type": "offline",
@@ -92,7 +91,6 @@ async def async_ensure_implementation_from_entry(
     hass: HomeAssistant, config_entry: ConfigEntry
 ) -> config_entry_oauth2_flow.AbstractOAuth2Implementation:
     """Ensure that the OAuth implementation for a config entry is registered."""
-
     domain = config_entry.data.get("auth_implementation")
     if not domain:
         raise ConfigEntryAuthFailed("missing_auth_implementation")
