@@ -1,11 +1,11 @@
-"""Simple OAuth2 helper for Nest Protect fallback."""
+"""OAuth2 helper for Nest Protect fallback."""
 
 from __future__ import annotations
 import aiohttp
 import asyncio
 from typing import Any
 from .exceptions import PynestException
-from .const import LOGGER
+from ..const import LOGGER  # eine Ebene hoch (..), weil LOGGER im Hauptpaket liegt
 
 
 class NestOAuthClient:
@@ -37,7 +37,9 @@ class NestOAuthClient:
             async with self.session.post(self.TOKEN_URL, data=payload) as resp:
                 data = await resp.json(content_type=None)
                 if resp.status != 200:
-                    raise PynestException(f"OAuth token exchange failed: {resp.status} - {data}")
+                    raise PynestException(
+                        f"OAuth token exchange failed: {resp.status} - {data}"
+                    )
                 self.access_token = data.get("access_token")
                 self.refresh_token = data.get("refresh_token")
                 self.expires_in = int(data.get("expires_in", 0))
@@ -50,6 +52,7 @@ class NestOAuthClient:
         """Refresh access token using stored refresh token."""
         if not self.refresh_token:
             raise PynestException("No refresh token available.")
+
         payload = {
             "client_id": self.client_id,
             "client_secret": self.client_secret,
@@ -62,7 +65,9 @@ class NestOAuthClient:
             async with self.session.post(self.TOKEN_URL, data=payload) as resp:
                 data = await resp.json(content_type=None)
                 if resp.status != 200:
-                    raise PynestException(f"OAuth refresh failed: {resp.status} - {data}")
+                    raise PynestException(
+                        f"OAuth refresh failed: {resp.status} - {data}"
+                    )
                 self.access_token = data.get("access_token")
                 self.expires_in = int(data.get("expires_in", 0))
                 return data
