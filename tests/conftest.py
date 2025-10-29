@@ -11,9 +11,7 @@ from homeassistant.setup import async_setup_component
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.nest_protect.const import CONF_ACCOUNT_TYPE, DOMAIN
-from custom_components.nest_protect.oauth import implementation_domain
-from custom_components.nest_protect.pynest.enums import Environment
+from custom_components.nest_protect.const import DOMAIN
 
 # Typing helpers
 ComponentSetup = Callable[[], Awaitable[None]]
@@ -44,11 +42,12 @@ async def config_entry() -> MockConfigEntry:
     return MockConfigEntry(
         domain=DOMAIN,
         data={
-            CONF_ACCOUNT_TYPE: Environment.PRODUCTION,
-            "auth_implementation": implementation_domain(Environment.PRODUCTION),
+            "client_id": "client-id",
+            "client_secret": "client-secret",
+            "auth_implementation": "nest_protect_test",
             "token": TOKEN_PAYLOAD.copy(),
         },
-        version=4,
+        version=5,
     )
 
 

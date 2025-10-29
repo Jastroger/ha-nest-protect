@@ -12,8 +12,6 @@ LOGGER: logging.Logger = logging.getLogger(__package__)
 DOMAIN: Final = "nest_protect"
 ATTRIBUTION: Final = "Data provided by Google"
 
-CONF_ACCOUNT_TYPE: Final = "account_type"
-
 OAUTH_AUTHORIZE_URL: Final = "https://accounts.google.com/o/oauth2/v2/auth"
 OAUTH_SCOPES: Final = [
     "https://www.googleapis.com/auth/nest-account.readonly",
