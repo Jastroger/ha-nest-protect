@@ -32,6 +32,12 @@ class ConfigFlow(config_entry_oauth2_flow.AbstractOAuth2FlowHandler, domain=NEST
         self._use_device_access: bool = False
         self._device_access_project_id: str | None = None
 
+        @property
+    def logger(self):
+        """Return logger for this flow (required by HA base class)."""
+        from .const import LOGGER
+        return LOGGER
+    
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         if user_input is not None:
             self._use_device_access = user_input.get("use_device_access", True)
