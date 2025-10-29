@@ -1,5 +1,5 @@
 """Exceptions used by PyNest."""
-
+from __future__ import annotations
 
 class PynestException(Exception):
     """Base class for all exceptions raised by pynest."""
