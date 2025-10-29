@@ -15,11 +15,9 @@ from .const import (
     DEFAULT_NEST_ENVIRONMENT,
     NEST_AUTH_URL_JWT,
     NEST_REQUEST,
-    TOKEN_URL,
     USER_AGENT,
 )
 from .exceptions import (
-    BadCredentialsException,
     BadGatewayException,
     EmptyResponseException,
     GatewayTimeoutException,
@@ -29,8 +27,6 @@ from .exceptions import (
 from .models import (
     Bucket,
     FirstDataAPIResponse,
-    GoogleAuthResponse,
-    GoogleAuthResponseForCookies,
     NestAuthResponse,
     NestEnvironment,
     NestResponse,
@@ -43,31 +39,18 @@ class NestClient:
     """Interface class for the Nest API."""
 
     nest_session: NestResponse | None = None
-    auth: GoogleAuthResponseForCookies | None = None
     session: ClientSession
     transport_url: str | None = None
     environment: NestEnvironment
 
-    # Legacy Auth
-    refresh_token: str | None = None
-    # Cookie Auth
-    cookies: str | None = None
-    issue_token: str | None = None
-
     def __init__(
         self,
         session: ClientSession | None = None,
-        # refresh_token: str | None = None,
-        # issue_token: str | None = None,
-        # cookies: str | None = None,
         environment: NestEnvironment = DEFAULT_NEST_ENVIRONMENT,
     ) -> None:
         """Initialize NestClient."""
 
         self.session = session if session else ClientSession()
-        # self.refresh_token = refresh_token
-        # self.issue_token = issue_token
-        # self.cookies = cookies
         self.environment = environment
 
     async def __aenter__(self) -> NestClient:
@@ -83,102 +66,18 @@ class NestClient:
         """__aexit__."""
         await self.session.close()
 
-    async def get_access_token(self) -> GoogleAuthResponse:
-        """Get a Nest access token."""
-
-        if self.refresh_token:
-            await self.get_access_token_from_refresh_token(self.refresh_token)
-        elif self.issue_token and self.cookies:
-            await self.get_access_token_from_cookies(self.issue_token, self.cookies)
-
-        return self.auth
-
-    async def ensure_authenticated(self) -> None:
+    async def ensure_authenticated(self, access_token: str) -> NestResponse:
         """Ensure the client has a valid Nest session."""
 
         if self.nest_session and not self.nest_session.is_expired():
-            return
+            return self.nest_session
 
-        if not self.auth or self.auth.is_expired():
-            await self.get_access_token()
-
-        if not self.auth:
+        if not access_token:
             raise NotAuthenticatedException("Unable to retrieve Google access token")
 
-        self.nest_session = await self.authenticate(self.auth.access_token)
+        self.nest_session = await self.authenticate(access_token)
 
-    async def get_access_token_from_refresh_token(
-        self, refresh_token: str | None = None
-    ) -> GoogleAuthResponse:
-        """Get a Nest refresh token from an authorization code."""
-
-        if refresh_token:
-            self.refresh_token = refresh_token
-
-        if not self.refresh_token:
-            raise Exception("No refresh token")
-
-        async with self.session.post(
-            TOKEN_URL,
-            data=FormData(
-                {
-                    "refresh_token": self.refresh_token,
-                    "client_id": self.environment.client_id,
-                    "grant_type": "refresh_token",
-                }
-            ),
-            headers={
-                "User-Agent": USER_AGENT,
-                "Content-Type": "application/x-www-form-urlencoded",
-            },
-        ) as response:
-            result = await response.json()
-
-            if "error" in result:
-                if result["error"] == "invalid_grant":
-                    raise BadCredentialsException(result["error"])
-
-                raise Exception(result["error"])
-
-            self.auth = GoogleAuthResponse(**result)
-
-            return self.auth
-
-    async def get_access_token_from_cookies(
-        self, issue_token: str, cookies: str
-    ) -> GoogleAuthResponse:
-        """Get a Nest refresh token from an issue token and cookies."""
-
-        if issue_token:
-            self.issue_token = issue_token
-
-        if cookies:
-            self.cookies = cookies
-
-        async with self.session.get(
-            issue_token,
-            headers={
-                "Sec-Fetch-Mode": "cors",
-                "User-Agent": USER_AGENT,
-                "X-Requested-With": "XmlHttpRequest",
-                "Referer": "https://accounts.google.com/o/oauth2/iframe",
-                "cookie": cookies,
-            },
-        ) as response:
-            result = await response.json()
-
-            if "error" in result:
-                # Cookie method
-                if result["error"] == "USER_LOGGED_OUT":
-                    raise BadCredentialsException(
-                        f"{result["error"]} - {result["detail"]}"
-                    )
-
-                raise Exception(result["error"])
-
-            self.auth = GoogleAuthResponseForCookies(**result)
-
-            return self.auth
+        return self.nest_session
 
     async def authenticate(self, access_token: str) -> NestResponse:
         """Start a new Nest session with an access token."""

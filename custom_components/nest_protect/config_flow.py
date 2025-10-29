@@ -2,163 +2,133 @@
 
 from __future__ import annotations
 
-from typing import Any, cast
-
 from aiohttp import ClientError
-from homeassistant import config_entries
+from homeassistant.helpers import config_entry_oauth2_flow
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers.aiohttp_client import async_create_clientsession
 import voluptuous as vol
 
-from .const import (
-    CONF_ACCOUNT_TYPE,
-    CONF_COOKIES,
-    CONF_ISSUE_TOKEN,
-    CONF_REFRESH_TOKEN,
-    DOMAIN,
-    LOGGER,
-)
+from .const import CONF_ACCOUNT_TYPE, DOMAIN, LOGGER
+from .oauth import async_ensure_oauth_implementation
 from .pynest.client import NestClient
 from .pynest.const import NEST_ENVIRONMENTS
 from .pynest.enums import Environment
-from .pynest.exceptions import BadCredentialsException
+from .pynest.exceptions import BadCredentialsException, PynestException
 
 
-class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
+class ConfigFlow(config_entry_oauth2_flow.AbstractOAuth2FlowHandler, domain=DOMAIN):
     """Config flow for Nest Protect."""
 
-    VERSION = 3
+    VERSION = 4
 
     _config_entry: ConfigEntry | None = None
     _default_account_type: Environment = Environment.PRODUCTION
 
-    async def async_validate_input(self, user_input: dict[str, Any]) -> list:
-        """Validate user credentials."""
+    @property
+    def logger(self):
+        """Return the logger to use for the flow."""
 
-        environment = user_input[CONF_ACCOUNT_TYPE]
-        session = async_create_clientsession(self.hass)
-        client = NestClient(session=session, environment=NEST_ENVIRONMENTS[environment])
+        return LOGGER
 
-        if CONF_ISSUE_TOKEN in user_input and CONF_COOKIES in user_input:
-            issue_token = user_input[CONF_ISSUE_TOKEN]
-            cookies = user_input[CONF_COOKIES]
-        if CONF_REFRESH_TOKEN in user_input:
-            refresh_token = user_input[CONF_REFRESH_TOKEN]
+    async def _async_register_implementation(self) -> None:
+        """Ensure the selected implementation is registered and set."""
 
-        if issue_token and cookies:
-            auth = await client.get_access_token_from_cookies(issue_token, cookies)
-        elif refresh_token:
-            auth = await client.get_access_token_from_refresh_token(refresh_token)
-
-        nest = await client.authenticate(auth.access_token)
-        data = await client.get_first_data(nest.access_token, nest.userid)
-
-        email = ""
-        for bucket in data.updated_buckets:
-            key = bucket.object_key
-            if key.startswith("user."):
-                email = bucket.value["email"]
-
-        # Set unique id to user_id (object.key: user.xxxx)
-        await self.async_set_unique_id(nest.user)
-
-        return [issue_token, cookies, email]
+        implementation = await async_ensure_oauth_implementation(
+            self.hass, self._default_account_type
+        )
+        self.flow_impl = implementation
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         """Handle a flow initialized by the user."""
-        errors = {}
 
-        if user_input:
-            self._default_account_type = user_input[CONF_ACCOUNT_TYPE]
-            return await self.async_step_account_link()
+        self._config_entry = None
 
-        return self.async_show_form(
-            step_id="user",
-            data_schema=vol.Schema(
-                {
-                    vol.Required(
-                        CONF_ACCOUNT_TYPE, default=self._default_account_type
-                    ): vol.In(
-                        {key: env.name for key, env in NEST_ENVIRONMENTS.items()}
-                    ),
-                }
-            ),
-            errors=errors,
-        )
-
-    async def async_step_account_link(
-        self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
-        """Handle a flow initialized by the user."""
-        errors = {}
-
-        if user_input:
-            user_input[CONF_ACCOUNT_TYPE] = self._default_account_type
-
-            try:
-                [issue_token, cookies, email] = await self.async_validate_input(
-                    user_input
-                )
-                user_input[CONF_ISSUE_TOKEN] = issue_token
-                user_input[CONF_COOKIES] = cookies
-            except (TimeoutError, ClientError):
-                errors["base"] = "cannot_connect"
-            except BadCredentialsException:
-                errors["base"] = "invalid_auth"
-            except Exception as exception:  # pylint: disable=broad-except
-                errors["base"] = "unknown"
-                LOGGER.exception(exception)
-            else:
-                if self._config_entry:
-                    # Update existing entry during reauth
-                    self.hass.config_entries.async_update_entry(
-                        self._config_entry,
-                        data={
-                            **self._config_entry.data,
-                            **user_input,
-                        },
-                    )
-
-                    self.hass.async_create_task(
-                        self.hass.config_entries.async_reload(
-                            self._config_entry.entry_id
+        if user_input is None:
+            return self.async_show_form(
+                step_id="user",
+                data_schema=vol.Schema(
+                    {
+                        vol.Required(
+                            CONF_ACCOUNT_TYPE, default=self._default_account_type
+                        ): vol.In(
+                            {key: env.name for key, env in NEST_ENVIRONMENTS.items()}
                         )
-                    )
+                    }
+                ),
+            )
 
-                    return self.async_create_entry(
-                        title=f"Nest Protect ({email})", data=user_input
-                    )
+        self._default_account_type = user_input[CONF_ACCOUNT_TYPE]
+        await self._async_register_implementation()
 
-                self._abort_if_unique_id_configured()
+        return await self.async_step_auth()
 
-                return self.async_create_entry(
-                    title=f"Nest Protect ({email})", data=user_input
-                )
+    async def async_step_reauth(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+        """Handle re-authentication of an existing entry."""
 
-        return self.async_show_form(
-            step_id="account_link",
-            data_schema=vol.Schema(
-                {
-                    vol.Required(CONF_ISSUE_TOKEN): str,
-                    vol.Required(CONF_COOKIES): str,
-                }
-            ),
-            errors=errors,
-            last_step=True,
+        entry_id = self.context.get("entry_id")
+        self._config_entry = (
+            self.hass.config_entries.async_get_entry(entry_id)
+            if entry_id
+            else None
         )
 
-    async def async_step_reauth(
-        self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
-        """Handle reauth."""
-        self._config_entry = cast(
-            ConfigEntry,
-            self.hass.config_entries.async_get_entry(self.context["entry_id"]),
-        )
+        if self._config_entry is None:
+            return self.async_abort(reason="unknown")
 
         self._default_account_type = self._config_entry.data[CONF_ACCOUNT_TYPE]
+        await self._async_register_implementation()
 
-        return await self.async_step_account_link(user_input)
+        return await self.async_step_auth()
+
+    async def async_oauth_create_entry(self, data: dict) -> FlowResult:
+        """Finalize the OAuth flow and create/update the config entry."""
+
+        session = async_create_clientsession(self.hass)
+        environment = NEST_ENVIRONMENTS[self._default_account_type]
+        client = NestClient(session=session, environment=environment)
+
+        try:
+            nest = await client.authenticate(data["token"]["access_token"])
+            first_data = await client.get_first_data(nest.access_token, nest.userid)
+        except BadCredentialsException:
+            return self.async_abort(reason="invalid_auth")
+        except ClientError:
+            return self.async_abort(reason="cannot_connect")
+        except PynestException as err:
+            LOGGER.exception("Unexpected error while completing OAuth: %s", err)
+            return self.async_abort(reason="unknown")
+
+        email = nest.email
+        if not email:
+            for bucket in first_data.updated_buckets:
+                if bucket.object_key.startswith("user."):
+                    email = bucket.value.get("email")
+                    if email:
+                        break
+
+        await self.async_set_unique_id(nest.user)
+
+        entry_data = {
+            CONF_ACCOUNT_TYPE: self._default_account_type,
+            "auth_implementation": data["auth_implementation"],
+            "token": data["token"],
+        }
+
+        title_email = email or nest.userid
+        title = f"Nest Protect ({title_email})"
+
+        if self._config_entry:
+            self.hass.config_entries.async_update_entry(
+                self._config_entry, data=entry_data, title=title
+            )
+            self.hass.async_create_task(
+                self.hass.config_entries.async_reload(self._config_entry.entry_id)
+            )
+            return self.async_abort(reason="reauth_successful")
+
+        self._abort_if_unique_id_configured(updates=entry_data)
+
+        return self.async_create_entry(title=title, data=entry_data)

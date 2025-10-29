@@ -13,9 +13,12 @@ DOMAIN: Final = "nest_protect"
 ATTRIBUTION: Final = "Data provided by Google"
 
 CONF_ACCOUNT_TYPE: Final = "account_type"
-CONF_REFRESH_TOKEN: Final = "refresh_token"
-CONF_ISSUE_TOKEN: Final = "issue_token"
-CONF_COOKIES: Final = "cookies"
+
+OAUTH_AUTHORIZE_URL: Final = "https://accounts.google.com/o/oauth2/v2/auth"
+OAUTH_SCOPES: Final = [
+    "https://www.googleapis.com/auth/nest-account.readonly",
+    "https://www.googleapis.com/auth/userinfo.email",
+]
 
 PLATFORMS: list[Platform] = [
     Platform.BINARY_SENSOR,
