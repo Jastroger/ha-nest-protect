@@ -64,7 +64,7 @@ class ConfigFlow(config_entry_oauth2_flow.AbstractOAuth2FlowHandler, domain=NEST
                 ),
             )
 
-        self._default_account_type = user_input[CONF_ACCOUNT_TYPE]
+        self._default_account_type = Environment(user_input[CONF_ACCOUNT_TYPE])
         await self._async_register_implementation()
 
         return await self.async_step_auth()
@@ -82,7 +82,9 @@ class ConfigFlow(config_entry_oauth2_flow.AbstractOAuth2FlowHandler, domain=NEST
         if self._config_entry is None:
             return self.async_abort(reason="unknown")
 
-        self._default_account_type = self._config_entry.data[CONF_ACCOUNT_TYPE]
+        self._default_account_type = Environment(
+            self._config_entry.data[CONF_ACCOUNT_TYPE]
+        )
         await self._async_register_implementation()
 
         return await self.async_step_auth()

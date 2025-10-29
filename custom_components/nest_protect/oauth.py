@@ -19,10 +19,21 @@ from .pynest.enums import Environment
 from .pynest.models import NestEnvironment
 
 
-def implementation_domain(environment: Environment) -> str:
+def _coerce_environment(environment: Environment | str) -> Environment:
+    """Return an ``Environment`` instance for the provided value."""
+
+    if isinstance(environment, Environment):
+        return environment
+
+    return Environment(environment)
+
+
+def implementation_domain(environment: Environment | str) -> str:
     """Return the config entry OAuth implementation domain."""
 
-    return f"{DOMAIN}_{environment.value}"
+    env = _coerce_environment(environment)
+
+    return f"{DOMAIN}_{env.value}"
 
 
 class NestOAuth2Implementation(config_entry_oauth2_flow.LocalOAuth2Implementation):
@@ -63,18 +74,21 @@ class NestOAuth2Implementation(config_entry_oauth2_flow.LocalOAuth2Implementatio
 
 
 async def async_ensure_oauth_implementation(
-    hass: HomeAssistant, environment: Environment
+    hass: HomeAssistant, environment: Environment | str
 ) -> config_entry_oauth2_flow.AbstractOAuth2Implementation:
     """Ensure that the OAuth implementation for the environment is registered."""
 
-    domain = implementation_domain(environment)
+    env = _coerce_environment(environment)
+    domain = implementation_domain(env)
     implementations = await config_entry_oauth2_flow.async_get_implementations(
         hass, DOMAIN
     )
 
     if domain not in implementations:
-        env = NEST_ENVIRONMENTS[environment]
-        implementation = NestOAuth2Implementation(hass, domain, env)
+        environment_config = NEST_ENVIRONMENTS[env]
+        implementation = NestOAuth2Implementation(
+            hass, domain, environment_config
+        )
         config_entry_oauth2_flow.async_register_implementation(
             hass, DOMAIN, implementation
         )
@@ -137,11 +151,11 @@ async def async_get_nest_oauth_session(
 
 
 async def async_token_from_refresh_token(
-    hass: HomeAssistant, environment: Environment, refresh_token: str
+    hass: HomeAssistant, environment: Environment | str, refresh_token: str
 ) -> dict[str, Any]:
     """Build a token payload from a stored refresh token."""
 
-    env = NEST_ENVIRONMENTS[environment]
+    env = NEST_ENVIRONMENTS[_coerce_environment(environment)]
     session = async_get_clientsession(hass)
     response = await session.post(
         TOKEN_URL,

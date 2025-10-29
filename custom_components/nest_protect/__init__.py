@@ -50,26 +50,28 @@ class HomeAssistantNestProtectData:
 
 
 async def async_ensure_token_data(
-    hass: HomeAssistant, account_type: Environment, entry_data: dict[str, Any]
+    hass: HomeAssistant, account_type: Environment | str, entry_data: dict[str, Any]
 ) -> dict[str, Any]:
     """Build token data for migrated entries."""
 
-    await async_ensure_oauth_implementation(hass, account_type)
+    env = Environment(account_type)
+
+    await async_ensure_oauth_implementation(hass, env)
 
     refresh_token = entry_data.get("refresh_token", "")
     try:
         token = (
-            await async_token_from_refresh_token(hass, account_type, refresh_token)
+            await async_token_from_refresh_token(hass, env, refresh_token)
             if refresh_token
             else _empty_token(refresh_token)
         )
     except ConfigEntryAuthFailed:
-        LOGGER.debug("Failed to migrate refresh token for %s", account_type, exc_info=True)
+        LOGGER.debug("Failed to migrate refresh token for %s", env, exc_info=True)
         token = _empty_token(refresh_token)
 
     return {
-        CONF_ACCOUNT_TYPE: account_type,
-        "auth_implementation": implementation_domain(account_type),
+        CONF_ACCOUNT_TYPE: env,
+        "auth_implementation": implementation_domain(env),
         "token": token,
     }
 
@@ -101,7 +103,9 @@ async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry):
 
     if config_entry.version < 4:
         current_data = {**config_entry.data}
-        account_type = current_data.get(CONF_ACCOUNT_TYPE, Environment.PRODUCTION)
+        account_type = Environment(
+            current_data.get(CONF_ACCOUNT_TYPE, Environment.PRODUCTION)
+        )
 
         implementation = await async_ensure_token_data(hass, account_type, current_data)
 
@@ -117,7 +121,7 @@ async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry):
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     """Set up Nest Protect from a config entry."""
     session = async_create_clientsession(hass)
-    account_type = entry.data[CONF_ACCOUNT_TYPE]
+    account_type = Environment(entry.data[CONF_ACCOUNT_TYPE])
     client = NestClient(session=session, environment=NEST_ENVIRONMENTS[account_type])
 
     oauth_session = await async_get_nest_oauth_session(hass, entry)
