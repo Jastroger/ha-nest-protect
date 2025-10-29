@@ -11,7 +11,7 @@ from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers.aiohttp_client import async_create_clientsession
 import voluptuous as vol
 
-from .const import CONF_ACCOUNT_TYPE, DOMAIN, LOGGER
+from .const import CONF_ACCOUNT_TYPE, DOMAIN as NEST_PROTECT_DOMAIN, LOGGER
 from .oauth import async_ensure_oauth_implementation
 from .pynest.client import NestClient
 from .pynest.const import NEST_ENVIRONMENTS
@@ -19,10 +19,12 @@ from .pynest.enums import Environment
 from .pynest.exceptions import BadCredentialsException, PynestException
 
 
-class ConfigFlow(config_entry_oauth2_flow.AbstractOAuth2FlowHandler, domain=DOMAIN):
+class ConfigFlow(config_entry_oauth2_flow.AbstractOAuth2FlowHandler, domain=NEST_PROTECT_DOMAIN):
     """Config flow for Nest Protect."""
 
     VERSION = 4
+
+    DOMAIN = NEST_PROTECT_DOMAIN
 
     _config_entry: ConfigEntry | None = None
     _default_account_type: Environment = Environment.PRODUCTION
