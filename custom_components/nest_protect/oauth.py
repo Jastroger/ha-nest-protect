@@ -4,7 +4,7 @@ from __future__ import annotations
 import aiohttp
 import asyncio
 from typing import Any
-from .exceptions import PynestException
+from .pynest.exceptions import PynestException
 from ..const import LOGGER  # eine Ebene hoch (..), weil LOGGER im Hauptpaket liegt
 
 
