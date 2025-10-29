@@ -5,7 +5,7 @@ import aiohttp
 import asyncio
 from typing import Any
 from .pynest.exceptions import PynestException
-from ..const import LOGGER  # eine Ebene hoch (..), weil LOGGER im Hauptpaket liegt
+from .const import LOGGER  # eine Ebene hoch (..), weil LOGGER im Hauptpaket liegt
 
 
 class NestOAuthClient:
