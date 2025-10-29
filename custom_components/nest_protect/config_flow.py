@@ -62,12 +62,8 @@ class ConfigFlow(
                 prefer_external=True,
                 allow_internal=False,
                 allow_ip=False,
-                allow_cloud=False,
             )
         except NoURLAvailableError:
-            external_url = None
-
-        if external_url and "my.home-assistant.io" in external_url:
             external_url = None
 
         if external_url:
