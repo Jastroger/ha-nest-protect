@@ -1,308 +1,41 @@
-"""Nest Protect integration."""
+"""Nest Protect integration init."""
 
 from __future__ import annotations
 
-import asyncio
-from dataclasses import dataclass
-import uuid
-from typing import Any
-
-from aiohttp import ClientConnectorError, ClientError, ServerDisconnectedError
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
-from homeassistant.helpers.aiohttp_client import async_create_clientsession
-from homeassistant.helpers.device_registry import DeviceEntry
-from homeassistant.helpers.dispatcher import async_dispatcher_send
+from homeassistant.config_entries import ConfigEntry
 
-from .const import DOMAIN, LOGGER, PLATFORMS
-from .oauth import async_get_nest_oauth_session
-from .pynest.client import NestClient
-from .pynest.const import DEFAULT_NEST_ENVIRONMENT
-from .pynest.enums import BucketType
-from .pynest.exceptions import (
-    BadCredentialsException,
-    EmptyResponseException,
-    NestServiceException,
-    NotAuthenticatedException,
-    PynestException,
-)
-from .pynest.models import Bucket, FirstDataAPIResponse, TopazBucket, WhereBucketValue
+from .const import DOMAIN, LOGGER
 
 
-@dataclass
-class HomeAssistantNestProtectData:
-    """Nest Protect data stored in the Home Assistant data object."""
-
-    devices: dict[str, Bucket]
-    areas: dict[str, str]
-    client: NestClient
-    oauth_session: "NestProtectOAuth2Session"
-
-
-def _empty_token(refresh_token: str) -> dict[str, Any]:
-    """Return an empty token payload to trigger re-auth."""
-
-    return {
-        "access_token": "",
-        "refresh_token": refresh_token,
-        "token_type": "Bearer",
-        "scope": "",
-        "id_token": "",
-        "expires_in": 0,
-        "expires_at": 0,
+async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Set up Nest Protect integration from a config entry."""
+    hass.data.setdefault(DOMAIN, {})
+    hass.data[DOMAIN][entry.entry_id] = {
+        "entry": entry,
+        "device_access": entry.data.get("device_access", False),
+        "device_access_project_id": entry.data.get("device_access_project_id"),
+        "access_token": entry.data.get("access_token"),
+        "refresh_token": entry.data.get("refresh_token"),
+        "sdm_devices": entry.data.get("sdm_devices"),
+        "restricted": entry.data.get("restricted", False),
+        "restricted_reason": entry.data.get("restricted_reason"),
     }
 
-
-async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry):
-    """Migrate old Config entries."""
-    LOGGER.debug("Migrating from version %s", config_entry.version)
-
-    if config_entry.version < 5:
-        current_data = {**config_entry.data}
-        token = current_data.get("token")
-        if not isinstance(token, dict):
-            refresh_token = current_data.get("refresh_token", "")
-            token = _empty_token(refresh_token)
-
-        auth_domain = current_data.get("auth_implementation")
-        if not auth_domain:
-            auth_domain = f"{DOMAIN}_{uuid.uuid4().hex}"
-
-        new_data = {
-            "client_id": current_data.get("client_id", ""),
-            "client_secret": current_data.get("client_secret", ""),
-            "auth_implementation": auth_domain,
-            "token": token,
-        }
-
-        hass.config_entries.async_update_entry(
-            config_entry, data=new_data, version=5
+    for platform in ["binary_sensor", "sensor"]:
+        hass.async_create_task(
+            hass.config_entries.async_forward_entry_setup(entry, platform)
         )
-        LOGGER.warning(
-            "Die vorhandene Nest Protect Konfiguration wurde aktualisiert. Bitte starte die "
-            "Einrichtung erneut, damit eigene Google OAuth Zugangsdaten hinterlegt werden können."
-        )
-
-    LOGGER.debug("Migration to version %s successful", config_entry.version)
-
-    return True
-
-
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
-    """Set up Nest Protect from a config entry."""
-    session = async_create_clientsession(hass)
-    client_id = entry.data.get("client_id")
-    client_secret = entry.data.get("client_secret")
-
-    if not client_id or not client_secret:
-        LOGGER.warning(
-            "Fehlende Google OAuth Client-Daten im Konfigurationseintrag. Starte die "
-            "Nest Protect Einrichtung neu, um die Anmeldedaten zu hinterlegen."
-        )
-        raise ConfigEntryAuthFailed("missing_client_credentials")
-
-    client = NestClient(session=session, environment=DEFAULT_NEST_ENVIRONMENT)
-
-    oauth_session = await async_get_nest_oauth_session(hass, entry)
-
-    try:
-        access_token = await oauth_session.async_get_access_token()
-        nest = await client.ensure_authenticated(access_token)
-    except ConfigEntryAuthFailed:
-        raise
-    except (TimeoutError, ClientError) as exception:
-        raise ConfigEntryNotReady from exception
-    except BadCredentialsException as exception:
-        raise ConfigEntryAuthFailed from exception
-    except Exception as exception:  # pylint: disable=broad-except
-        LOGGER.exception("Unknown exception.")
-        raise ConfigEntryNotReady from exception
-
-    data = await client.get_first_data(nest.access_token, nest.userid)
-
-    device_buckets: list[Bucket] = []
-    areas: dict[str, str] = {}
-
-    for bucket in data.updated_buckets:
-        # Nest Protect
-        if bucket.type == BucketType.TOPAZ:
-            device_buckets.append(bucket)
-        # Temperature Sensors
-        elif bucket.type == BucketType.KRYPTONITE:
-            device_buckets.append(bucket)
-
-        # Areas
-        if bucket.type == BucketType.WHERE and isinstance(
-            bucket.value, WhereBucketValue
-        ):
-            bucket_value = bucket.value
-            for area in bucket_value.wheres:
-                areas[area.where_id] = area.name
-
-    devices: dict[str, Bucket] = {b.object_key: b for b in device_buckets}
-
-    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = HomeAssistantNestProtectData(
-        devices=devices,
-        areas=areas,
-        client=client,
-        oauth_session=oauth_session,
-    )
-
-    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
-
-    # Subscribe for real-time updates
-    _register_subscribe_task(hass, entry, data)
 
     return True
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
-    if unload_ok := await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
-        hass.data[DOMAIN].pop(entry.entry_id)
-
-    return unload_ok
-
-
-def _register_subscribe_task(
-    hass: HomeAssistant, entry: ConfigEntry, data: FirstDataAPIResponse
-) -> None:
-    """Register the background subscription task and ensure it is cleaned up."""
-
-    task = hass.async_create_background_task(
-        _async_subscribe_for_data(hass, entry, data),
-        name="nest_protect-subscribe",
+    unload_ok = all(
+        await hass.config_entries.async_forward_entry_unload(entry, platform)
+        for platform in ["binary_sensor", "sensor"]
     )
-
-    entry.async_on_unload(task.cancel)
-
-
-async def _async_subscribe_for_data(
-    hass: HomeAssistant, entry: ConfigEntry, data: FirstDataAPIResponse
-):
-    """Subscribe for new data."""
-    entry_data: HomeAssistantNestProtectData = hass.data[DOMAIN][entry.entry_id]
-
-    try:
-        access_token = await entry_data.oauth_session.async_get_access_token()
-        nest = await entry_data.client.ensure_authenticated(access_token)
-
-        # Subscribe to Google Nest subscribe endpoint
-        result = await entry_data.client.subscribe_for_data(
-            nest.access_token,
-            nest.userid,
-            data.service_urls["urls"]["transport_url"],
-            data.updated_buckets,
-        )
-
-        # TODO write this data away in a better way, best would be to directly model API responses in client
-        for bucket in result["objects"]:
-            key = bucket["object_key"]
-
-            # Nest Protect
-            if key.startswith("topaz."):
-                topaz = TopazBucket(**bucket)
-                entry_data.devices[key] = topaz
-
-                # TODO investigate if we want to use dispatcher, or get data from entry data in sensors
-                async_dispatcher_send(hass, key, topaz)
-
-            # Areas
-            if key.startswith("where."):
-                bucket_value = Bucket(**bucket).value
-
-                for area in bucket_value["wheres"]:
-                    entry_data.areas[area["where_id"]] = area["name"]
-
-            # Temperature Sensors
-            if key.startswith("kryptonite."):
-                kryptonite = Bucket(**bucket)
-                entry_data.devices[key] = kryptonite
-
-                async_dispatcher_send(hass, key, kryptonite)
-
-        # Update buckets with new data, to only receive new updates
-        buckets = {d["object_key"]: d for d in result["objects"]}
-
-        LOGGER.debug(buckets)
-
-        objects = [
-            dict(vars(b), **buckets.get(b.object_key, {})) for b in data.updated_buckets
-        ]
-
-        data.updated_buckets = [
-            Bucket(
-                object_key=bucket["object_key"],
-                object_revision=bucket["object_revision"],
-                object_timestamp=bucket["object_timestamp"],
-                value=bucket["value"],
-                type=bucket["type"],
-            )
-            for bucket in objects
-        ]
-
-        _register_subscribe_task(hass, entry, data)
-    except ServerDisconnectedError:
-        LOGGER.debug("Subscriber: server disconnected.")
-        _register_subscribe_task(hass, entry, data)
-
-    except asyncio.exceptions.TimeoutError:
-        LOGGER.debug("Subscriber: session timed out.")
-        _register_subscribe_task(hass, entry, data)
-
-    except ClientConnectorError:
-        LOGGER.debug("Subscriber: cannot connect to host.")
-        _register_subscribe_task(hass, entry, data)
-
-    except EmptyResponseException:
-        LOGGER.debug("Subscriber: Nest Service sent empty response.")
-        _register_subscribe_task(hass, entry, data)
-
-    except ConfigEntryAuthFailed:
-        LOGGER.debug("Subscriber: OAuth credentials invalid.")
-        raise
-
-    except NotAuthenticatedException:
-        LOGGER.debug("Subscriber: 401 exception.")
-        # Renewing access token
-        access_token = await entry_data.oauth_session.async_get_access_token()
-        await entry_data.client.ensure_authenticated(access_token)
-        _register_subscribe_task(hass, entry, data)
-
-    except BadCredentialsException as exception:
-        LOGGER.debug(
-            "Bad credentials detected. Please re-authenticate the Nest Protect integration."
-        )
-        raise ConfigEntryAuthFailed from exception
-
-    except NestServiceException:
-        LOGGER.debug("Subscriber: Nest Service error. Updates paused for 2 minutes.")
-
-        await asyncio.sleep(60 * 2)
-        _register_subscribe_task(hass, entry, data)
-
-    except PynestException:
-        LOGGER.exception(
-            "Unknown pynest exception. Please create an issue on GitHub with your logfile. Updates paused for 1 minute."
-        )
-
-        # Wait a minute before retrying
-        await asyncio.sleep(60)
-        _register_subscribe_task(hass, entry, data)
-
-    except Exception:  # pylint: disable=broad-except
-        # Wait 5 minutes before retrying
-        await asyncio.sleep(60 * 5)
-        _register_subscribe_task(hass, entry, data)
-
-        LOGGER.exception(
-            "Unknown exception. Please create an issue on GitHub with your logfile. Updates paused for 5 minutes."
-        )
-
-
-async def async_remove_config_entry_device(
-    hass: HomeAssistant, config_entry: ConfigEntry, device_entry: DeviceEntry
-) -> bool:
-    """Remove a config entry from a device."""
-    return True
+    if unload_ok:
+        hass.data[DOMAIN].pop(entry.entry_id, None)
+    return unload_ok
