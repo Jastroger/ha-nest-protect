@@ -12,9 +12,9 @@ from homeassistant.helpers.aiohttp_client import async_create_clientsession
 import voluptuous as vol
 
 from .const import (
-    CONF_ACCOUNT_TYPE,
     CONF_ACCESS_TOKEN,
     CONF_ACCESS_TOKEN_EXPIRES_AT,
+    CONF_ACCOUNT_TYPE,
     CONF_AUTH_METHOD,
     CONF_COOKIES,
     CONF_ISSUE_TOKEN,
@@ -140,8 +140,8 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         if user_input and CONF_AUTH_METHOD in user_input:
             self._auth_method = user_input[CONF_AUTH_METHOD]
-            if self._auth_method == "wizard":
-                return await self.async_step_auth_method_wizard()
+            # Both wizard and manual go to the same account_link step
+            # The wizard script is meant to be run before config flow, not during
             return await self.async_step_account_link()
 
         return self.async_show_form(
