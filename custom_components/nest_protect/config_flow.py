@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-import os
+from pathlib import Path
 from typing import Any, cast
 
 from aiohttp import ClientError
 from homeassistant import config_entries
+from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers.aiohttp_client import async_create_clientsession
@@ -44,21 +45,26 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         This is called during config flow to make the helper accessible
         even before the integration is fully set up.
         """
-        www_path = os.path.join(os.path.dirname(__file__), "www")
-        if os.path.exists(www_path):
+        www_path = Path(__file__).parent / "www"
+        if www_path.exists():
             try:
                 await self.hass.http.async_register_static_paths(
                     [
-                        {
-                            "path": "/local/nest_protect",
-                            "directory": www_path,
-                        }
+                        StaticPathConfig(
+                            "/local/nest_protect",
+                            str(www_path),
+                            should_cache=False,
+                        )
                     ]
                 )
-                LOGGER.debug("Registered static path for credential helper at %s", www_path)
+                LOGGER.debug(
+                    "Registered static path for credential helper at %s", www_path
+                )
             except Exception as e:
                 # Path might already be registered, log but continue
-                LOGGER.debug("Static path registration issue (may already be registered): %s", e)
+                LOGGER.debug(
+                    "Static path registration issue (may already be registered): %s", e
+                )
         else:
             LOGGER.warning("www folder not found at %s", www_path)
 
@@ -193,7 +199,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """Handle wizard-assisted login with automated credential extraction."""
         # Ensure static path is registered for the credential helper
         await self._ensure_static_path_registered()
-        
+
         if user_input:
             # User has provided credentials (either manually or from wizard)
             return await self.async_step_account_link(user_input)

@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import asyncio
-import datetime
-import os
 from dataclasses import dataclass
+import datetime
+from pathlib import Path
 
 from aiohttp import ClientConnectorError, ClientError, ServerDisconnectedError
+from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
@@ -16,9 +17,9 @@ from homeassistant.helpers.device_registry import DeviceEntry
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 
 from .const import (
-    CONF_ACCOUNT_TYPE,
     CONF_ACCESS_TOKEN,
     CONF_ACCESS_TOKEN_EXPIRES_AT,
+    CONF_ACCOUNT_TYPE,
     CONF_COOKIES,
     CONF_ISSUE_TOKEN,
     CONF_REFRESH_TOKEN,
@@ -58,22 +59,25 @@ class HomeAssistantNestProtectData:
 async def async_setup(hass: HomeAssistant, config: dict):
     """Set up the Nest Protect component."""
     # Register www folder for credential helper
-    www_path = os.path.join(os.path.dirname(__file__), "www")
-    if os.path.exists(www_path):
+    www_path = Path(__file__).parent / "www"
+    if www_path.exists():
         try:
             await hass.http.async_register_static_paths(
                 [
-                    {
-                        "path": "/local/nest_protect",
-                        "directory": www_path,
-                    }
+                    StaticPathConfig(
+                        "/local/nest_protect",
+                        str(www_path),
+                        should_cache=False,
+                    )
                 ]
             )
             LOGGER.debug("Registered static path for credential helper at %s", www_path)
         except Exception as e:
             # Path might already be registered, log but continue
-            LOGGER.debug("Static path registration issue (may already be registered): %s", e)
-    
+            LOGGER.debug(
+                "Static path registration issue (may already be registered): %s", e
+            )
+
     return True
 
 
