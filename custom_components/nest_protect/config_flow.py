@@ -40,7 +40,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     def _ensure_static_path_registered(self) -> None:
         """Ensure the www folder is registered for the credential helper.
-        
+
         This is called during config flow to make the helper accessible
         even before the integration is fully set up.
         """
@@ -53,9 +53,9 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     cache_headers=False
                 )
                 LOGGER.debug("Registered static path for credential helper")
-            except Exception as e:
-                # Path might already be registered, which is fine
-                LOGGER.debug("Static path registration: %s", e)
+            except ValueError:
+                # Path is already registered, which is fine
+                LOGGER.debug("Static path already registered")
 
     @staticmethod
     def _normalize_issue_token(issue_token: str) -> str:
