@@ -183,18 +183,6 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             errors=errors,
         )
 
-    async def async_step_auth_method_wizard(
-        self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
-        """Handle the wizard instructions step."""
-        if user_input is not None:
-            return await self.async_step_account_link()
-
-        return self.async_show_form(
-            step_id="auth_method_wizard",
-            data_schema=vol.Schema({}),
-        )
-
     async def async_step_account_link(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
