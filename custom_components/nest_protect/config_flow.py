@@ -2,12 +2,10 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Any, cast
 
 from aiohttp import ClientError
 from homeassistant import config_entries
-from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers.aiohttp_client import async_create_clientsession
@@ -38,35 +36,6 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     _config_entry: ConfigEntry | None = None
     _default_account_type: Environment = Environment.PRODUCTION
     _auth_method: str = "wizard"
-
-    async def _ensure_static_path_registered(self) -> None:
-        """Ensure the www folder is registered for the credential helper.
-
-        This is called during config flow to make the helper accessible
-        even before the integration is fully set up.
-        """
-        www_path = Path(__file__).parent / "www"
-        if www_path.exists():
-            try:
-                await self.hass.http.async_register_static_paths(
-                    [
-                        StaticPathConfig(
-                            "/local/nest_protect",
-                            str(www_path),
-                            should_cache=False,
-                        )
-                    ]
-                )
-                LOGGER.debug(
-                    "Registered static path for credential helper at %s", www_path
-                )
-            except Exception as e:
-                # Path might already be registered, log but continue
-                LOGGER.debug(
-                    "Static path registration issue (may already be registered): %s", e
-                )
-        else:
-            LOGGER.warning("www folder not found at %s", www_path)
 
     @staticmethod
     def _normalize_issue_token(issue_token: str) -> str:
@@ -161,8 +130,6 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         """Handle the initial step."""
-        # Ensure static path is registered for credential helper
-        await self._ensure_static_path_registered()
         return await self.async_step_account_type(user_input)
 
     async def async_step_auth_method(
@@ -197,9 +164,6 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         """Handle wizard-assisted login with automated credential extraction."""
-        # Ensure static path is registered for the credential helper
-        await self._ensure_static_path_registered()
-
         if user_input:
             # User has provided credentials (either manually or from wizard)
             return await self.async_step_account_link(user_input)
