@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from typing import Any, cast
 
 from aiohttp import ClientError
@@ -36,6 +37,25 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     _config_entry: ConfigEntry | None = None
     _default_account_type: Environment = Environment.PRODUCTION
     _auth_method: str = "wizard"
+
+    def _ensure_static_path_registered(self) -> None:
+        """Ensure the www folder is registered for the credential helper.
+        
+        This is called during config flow to make the helper accessible
+        even before the integration is fully set up.
+        """
+        www_path = os.path.join(os.path.dirname(__file__), "www")
+        if os.path.exists(www_path):
+            try:
+                self.hass.http.register_static_path(
+                    "/local/nest_protect",
+                    www_path,
+                    cache_headers=False
+                )
+                LOGGER.debug("Registered static path for credential helper")
+            except Exception as e:
+                # Path might already be registered, which is fine
+                LOGGER.debug("Static path registration: %s", e)
 
     @staticmethod
     def _normalize_issue_token(issue_token: str) -> str:
@@ -130,6 +150,8 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         """Handle the initial step."""
+        # Ensure static path is registered for credential helper
+        self._ensure_static_path_registered()
         return await self.async_step_account_type(user_input)
 
     async def async_step_auth_method(
