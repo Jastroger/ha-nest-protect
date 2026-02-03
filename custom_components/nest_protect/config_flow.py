@@ -130,7 +130,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         """Handle the initial step."""
-        return await self.async_step_auth_method(user_input)
+        return await self.async_step_account_type(user_input)
 
     async def async_step_auth_method(
         self, user_input: dict[str, Any] | None = None
@@ -138,9 +138,11 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """Handle a flow initialized by the user."""
         errors = {}
 
-        if user_input:
+        if user_input and CONF_AUTH_METHOD in user_input:
             self._auth_method = user_input[CONF_AUTH_METHOD]
-            return await self.async_step_account_type()
+            if self._auth_method == "wizard":
+                return await self.async_step_auth_method_wizard()
+            return await self.async_step_account_link()
 
         return self.async_show_form(
             step_id="auth_method",
@@ -165,9 +167,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         if user_input:
             self._default_account_type = user_input[CONF_ACCOUNT_TYPE]
-            if self._auth_method == "wizard":
-                return await self.async_step_auth_method_wizard()
-            return await self.async_step_account_link()
+            return await self.async_step_auth_method()
 
         return self.async_show_form(
             step_id="user",
