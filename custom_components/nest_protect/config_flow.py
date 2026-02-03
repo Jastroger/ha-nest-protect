@@ -52,10 +52,12 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     www_path,
                     cache_headers=False
                 )
-                LOGGER.debug("Registered static path for credential helper")
-            except ValueError:
+                LOGGER.debug("Registered static path for credential helper at %s", www_path)
+            except (ValueError, KeyError) as e:
                 # Path is already registered, which is fine
-                LOGGER.debug("Static path already registered")
+                LOGGER.debug("Static path already registered or error: %s", e)
+        else:
+            LOGGER.warning("www folder not found at %s", www_path)
 
     @staticmethod
     def _normalize_issue_token(issue_token: str) -> str:
@@ -186,6 +188,9 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         """Handle wizard-assisted login with automated credential extraction."""
+        # Ensure static path is registered for the credential helper
+        self._ensure_static_path_registered()
+        
         if user_input:
             # User has provided credentials (either manually or from wizard)
             return await self.async_step_account_link(user_input)
