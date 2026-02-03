@@ -4,9 +4,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 import datetime
+import logging
 from typing import Any
 
 from .enums import BucketType
+
+_LOGGER = logging.getLogger(__name__)
 
 
 @dataclass
@@ -57,14 +60,19 @@ class NestResponse:
     def is_expired(self):
         """Check if session is expired."""
         # Tue, 01-Mar-2022 23:15:55 GMT
-        expiry_date = datetime.datetime.strptime(
-            self.expires_in, "%a, %d-%b-%Y %H:%M:%S %Z"
-        )
-
-        if expiry_date <= datetime.datetime.now():
+        try:
+            expiry_date = datetime.datetime.strptime(
+                self.expires_in, "%a, %d-%b-%Y %H:%M:%S %Z"
+            ).replace(tzinfo=datetime.timezone.utc)
+        except (ValueError, TypeError) as exc:
+            _LOGGER.warning(
+                "Failed to parse session expiry date: %s",
+                self.expires_in,
+                exc_info=exc,
+            )
             return True
 
-        return False
+        return expiry_date <= datetime.datetime.now(datetime.timezone.utc)
 
 
 @dataclass
