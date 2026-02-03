@@ -15,6 +15,7 @@ from .const import (
     CONF_ACCOUNT_TYPE,
     CONF_ACCESS_TOKEN,
     CONF_ACCESS_TOKEN_EXPIRES_AT,
+    CONF_AUTH_METHOD,
     CONF_COOKIES,
     CONF_ISSUE_TOKEN,
     CONF_REFRESH_TOKEN,
@@ -34,6 +35,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     _config_entry: ConfigEntry | None = None
     _default_account_type: Environment = Environment.PRODUCTION
+    _auth_method: str = "wizard"
 
     @staticmethod
     def _normalize_issue_token(issue_token: str) -> str:
@@ -127,11 +129,44 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
+        """Handle the initial step."""
+        return await self.async_step_auth_method(user_input)
+
+    async def async_step_auth_method(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
         """Handle a flow initialized by the user."""
         errors = {}
 
         if user_input:
+            self._auth_method = user_input[CONF_AUTH_METHOD]
+            return await self.async_step_account_type()
+
+        return self.async_show_form(
+            step_id="auth_method",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_AUTH_METHOD, default=self._auth_method): vol.In(
+                        {
+                            "wizard": "Wizard (recommended)",
+                            "manual": "Manual",
+                        }
+                    )
+                }
+            ),
+            errors=errors,
+        )
+
+    async def async_step_account_type(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Handle account type selection."""
+        errors = {}
+
+        if user_input:
             self._default_account_type = user_input[CONF_ACCOUNT_TYPE]
+            if self._auth_method == "wizard":
+                return await self.async_step_auth_method_wizard()
             return await self.async_step_account_link()
 
         return self.async_show_form(
@@ -146,6 +181,18 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 }
             ),
             errors=errors,
+        )
+
+    async def async_step_auth_method_wizard(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Handle the wizard instructions step."""
+        if user_input is not None:
+            return await self.async_step_account_link()
+
+        return self.async_show_form(
+            step_id="auth_method_wizard",
+            data_schema=vol.Schema({}),
         )
 
     async def async_step_account_link(
