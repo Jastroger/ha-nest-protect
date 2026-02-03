@@ -18,6 +18,13 @@
           "account_type": "Account Type"
         }
       },
+      "auth_method": {
+        "title": "Choose Authentication Help",
+        "description": "Both options will guide you through getting credentials from your browser.\n\n**Wizard**: For users comfortable with command-line tools. You can optionally run `scripts/nest_protect_cookie_wizard.py` to automate credential extraction before continuing.\n\n**Manual**: Step-by-step browser instructions will be shown in the next screen.",
+        "data": {
+          "auth_method": "Authentication help"
+        }
+      },
       "account_link": {
         "title": "Connect Your Nest Account",
         "description": "Follow these steps to get your credentials:\n\n1. Open an **Incognito/Private** browser window\n2. Enable **third-party cookies** in browser settings\n3. Go to [home.nest.com](https://home.nest.com) and sign in with Google\n4. Open **Developer Tools** (F12) → **Network** tab → Check **Preserve Log**\n5. In the filter box, type `issueToken` and copy the full **Request URL**\n6. In the filter box, type `oauth2/iframe`, click the last request, and copy the entire **Cookie** header value\n\n⚠️ Do not log out of home.nest.com after copying credentials",
