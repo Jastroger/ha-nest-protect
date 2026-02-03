@@ -1,0 +1,85 @@
+{
+  "config": {
+    "abort": {
+      "already_configured": "Account is al geconfigureerd",
+      "reauth_successful": "Herauthenticatie geslaagd!"
+    },
+    "error": {
+      "cannot_connect": "Kan geen verbinding maken",
+      "invalid_auth": "Ongeldige authenticatie",
+      "invalid_issue_token": "Ongeldige issue token URL. Moet beginnen met https://accounts.google.com/ en de issueToken-actie bevatten.",
+      "invalid_cookies": "Ongeldig cookie-formaat. Zorg ervoor dat u de volledige cookie-header hebt gekopieerd van het oauth2/iframe-verzoek.",
+      "unknown": "Onverwachte fout"
+    },
+    "step": {
+      "user": {
+        "description": "Selecteer uw accounttype. De meeste gebruikers moeten Google Account selecteren. Field Test is alleen beschikbaar voor geselecteerde testers in het Google Field Test-programma.",
+        "data": {
+          "account_type": "Accounttype"
+        }
+      },
+      "auth_method": {
+        "title": "Kies authenticatiehulp",
+        "description": "**Wizard (Aanbevolen)**: Begeleide stapsgewijze proces met een interactieve hulppagina en automatische validatie.\n\n**Manual**: Verkorte instructies voor gebruikers die al vertrouwd zijn met de ontwikkelaarstools van de browser.",
+        "data": {
+          "auth_method": "Authenticatiehulp"
+        }
+      },
+      "wizard_login": {
+        "title": "Wizard: Vereenvoudigde credential-extractie",
+        "description": "## 🚀 Vereenvoudigde handleiding\n\nDe wizard biedt u een **interactieve hulppagina** met automatische validatie en kopieer-plak functies.\n\n### Hoe het werkt:\n\n1. Open de hulppagina: [Open Credential Helper](/local/nest_protect/credential_helper.html)\n2. Volg de stappen op de hulppagina\n3. De pagina helpt u de inloggegevens vast te leggen en te valideren\n4. Kopieer de waarden en plak ze hieronder\n\n### Alternatief: Directe benadering\n\nAls de hulppagina niet werkt, kunt u de inloggegevens ook direct hier invoeren. Volg hiervoor de instructies bij de handmatige methode.\n\n⚠️ **Belangrijk:** Gebruik een incognito-venster en schakel cookies van derden in!",
+        "data": {
+          "issue_token": "Issue Token URL",
+          "cookies": "Cookies"
+        },
+        "data_description": {
+          "issue_token": "Volledige URL die begint met https://accounts.google.com/o/oauth2/iframerpc?action=issueToken...",
+          "cookies": "Volledige cookie-string van de oauth2/iframe request headers"
+        }
+      },
+      "account_link": {
+        "title": "Verbind uw Nest-account",
+        "description": "Volg deze stappen om uw inloggegevens te verkrijgen:\n\n1. Open een **Incognito/Privé** browservenster\n2. Schakel **cookies van derden** in de browserinstellingen in\n3. Ga naar [home.nest.com](https://home.nest.com) en meld u aan met Google\n4. Open **Ontwikkelaarstools** (F12) → **Network**-tabblad → Schakel **Preserve Log** in\n5. Typ in het filterveld `issueToken` en kopieer de volledige **Request URL**\n6. Typ in het filterveld `oauth2/iframe`, klik op het laatste verzoek en kopieer de volledige waarde van de **Cookie**-header\n\n⚠️ Meld u niet af bij home.nest.com na het kopiëren van de inloggegevens",
+        "data": {
+          "issue_token": "Issue Token URL",
+          "cookies": "Cookies"
+        },
+        "data_description": {
+          "issue_token": "Volledige URL die begint met https://accounts.google.com/o/oauth2/iframerpc?action=issueToken...",
+          "cookies": "Volledige cookie-string van de oauth2/iframe request headers"
+        }
+      }
+    }
+  },
+  "options": {
+    "abort": {
+      "already_configured": "Account is al geconfigureerd"
+    },
+    "error": {
+      "cannot_connect": "Kan geen verbinding maken",
+      "invalid_auth": "Ongeldige authenticatie",
+      "unknown": "Onverwachte fout"
+    },
+    "step": {
+      "account_link": {
+        "description": "Haal uw issue token en cookies op volgens de instructies in de README voor integratie en plak ze hieronder.",
+        "data": {
+          "issue_token": "Issue Token URL",
+          "cookies": "Cookies"
+        }
+      }
+    }
+  },
+  "entity": {
+    "select": {
+      "night_light_brightness": {
+        "name": "Nachtlamphelderheid",
+        "state": {
+          "low": "Laag",
+          "medium": "Gemiddeld",
+          "high": "Hoog"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,85 @@
+{
+  "config": {
+    "abort": {
+      "already_configured": "Account wurde bereits konfiguriert",
+      "reauth_successful": "Erneute Authentifizierung erfolgreich!"
+    },
+    "error": {
+      "cannot_connect": "Verbindung fehlgeschlagen",
+      "invalid_auth": "Ungültige Authentifizierung",
+      "invalid_issue_token": "Ungültige Issue Token URL. Muss mit https://accounts.google.com/ beginnen und die issueToken-Aktion enthalten.",
+      "invalid_cookies": "Ungültiges Cookie-Format. Stellen Sie sicher, dass Sie den vollständigen Cookie-Header aus der oauth2/iframe-Anfrage kopiert haben.",
+      "unknown": "Unerwarteter Fehler"
+    },
+    "step": {
+      "user": {
+        "description": "Wählen Sie Ihren Account-Typ. Die meisten Benutzer müssen Google Account auswählen. Field Test ist nur für ausgewählte Tester im Google Field Test-Programm verfügbar.",
+        "data": {
+          "account_type": "Account-Typ"
+        }
+      },
+      "auth_method": {
+        "title": "Authentifizierungshilfe wählen",
+        "description": "**Wizard (Empfohlen)**: Geführter Schritt-für-Schritt-Prozess mit einer interaktiven Hilfsseite und automatischer Validierung.\n\n**Manual**: Komprimierte Anweisungen für Benutzer, die bereits mit den Entwicklertools des Browsers vertraut sind.",
+        "data": {
+          "auth_method": "Authentifizierungshilfe"
+        }
+      },
+      "wizard_login": {
+        "title": "Wizard: Vereinfachte Credential-Erfassung",
+        "description": "## 🚀 Vereinfachte Anleitung\n\nDer Wizard bietet Ihnen eine **interaktive Hilfsseite** mit automatischer Validierung und Copy-Paste-Funktionen.\n\n### So funktioniert es:\n\n1. Öffnen Sie die Hilfsseite: [Credential Helper öffnen](/local/nest_protect/credential_helper.html)\n2. Folgen Sie den Schritten auf der Hilfsseite\n3. Die Seite hilft Ihnen, die Credentials zu erfassen und zu validieren\n4. Kopieren Sie die Werte und fügen Sie sie unten ein\n\n### Alternative: Direkter Ansatz\n\nWenn die Hilfsseite nicht funktioniert, können Sie die Credentials auch direkt hier eingeben. Folgen Sie dazu den Anweisungen in der manuellen Methode.\n\n⚠️ **Wichtig:** Verwenden Sie ein Inkognito-Fenster und aktivieren Sie Third-Party-Cookies!",
+        "data": {
+          "issue_token": "Issue Token URL",
+          "cookies": "Cookies"
+        },
+        "data_description": {
+          "issue_token": "Vollständige URL beginnend mit https://accounts.google.com/o/oauth2/iframerpc?action=issueToken...",
+          "cookies": "Vollständiger Cookie-String aus dem oauth2/iframe Request"
+        }
+      },
+      "account_link": {
+        "title": "Verbinden Sie Ihr Nest-Konto",
+        "description": "Folgen Sie diesen Schritten, um Ihre Anmeldedaten zu erhalten:\n\n1. Öffnen Sie ein **Inkognito/Privates** Browserfenster\n2. Aktivieren Sie **Third-Party-Cookies** in den Browsereinstellungen\n3. Gehen Sie zu [home.nest.com](https://home.nest.com) und melden Sie sich mit Google an\n4. Öffnen Sie die **Entwicklertools** (F12) → **Network**-Tab → Aktivieren Sie **Preserve Log**\n5. Geben Sie im Filterfeld `issueToken` ein und kopieren Sie die vollständige **Request URL**\n6. Geben Sie im Filterfeld `oauth2/iframe` ein, klicken Sie auf die letzte Anfrage und kopieren Sie den gesamten **Cookie**-Header-Wert\n\n⚠️ Melden Sie sich nicht von home.nest.com ab, nachdem Sie die Anmeldedaten kopiert haben",
+        "data": {
+          "issue_token": "Issue Token URL",
+          "cookies": "Cookies"
+        },
+        "data_description": {
+          "issue_token": "Vollständige URL beginnend mit https://accounts.google.com/o/oauth2/iframerpc?action=issueToken...",
+          "cookies": "Vollständiger Cookie-String aus dem oauth2/iframe Request"
+        }
+      }
+    }
+  },
+  "options": {
+    "abort": {
+      "already_configured": "Account wurde bereits konfiguriert"
+    },
+    "error": {
+      "cannot_connect": "Verbindung fehlgeschlagen",
+      "invalid_auth": "Ungültige Authentifizierung",
+      "unknown": "Unerwarteter Fehler"
+    },
+    "step": {
+      "account_link": {
+        "description": "Bitte rufen Sie Ihr Issue Token und Ihre Cookies gemäß den Anweisungen in der Integrations-README ab und fügen Sie sie unten ein.",
+        "data": {
+          "issue_token": "Issue Token URL",
+          "cookies": "Cookies"
+        }
+      }
+    }
+  },
+  "entity": {
+    "select": {
+      "night_light_brightness": {
+        "name": "Nachtlicht-Helligkeit",
+        "state": {
+          "low": "Niedrig",
+          "medium": "Mittel",
+          "high": "Hoch"
+        }
+      }
+    }
+  }
+}
