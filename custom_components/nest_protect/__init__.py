@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import datetime
 from dataclasses import dataclass
 
 from aiohttp import ClientConnectorError, ClientError, ServerDisconnectedError
@@ -15,6 +16,8 @@ from homeassistant.helpers.dispatcher import async_dispatcher_send
 
 from .const import (
     CONF_ACCOUNT_TYPE,
+    CONF_ACCESS_TOKEN,
+    CONF_ACCESS_TOKEN_EXPIRES_AT,
     CONF_COOKIES,
     CONF_ISSUE_TOKEN,
     CONF_REFRESH_TOKEN,
@@ -32,7 +35,13 @@ from .pynest.exceptions import (
     NotAuthenticatedException,
     PynestException,
 )
-from .pynest.models import Bucket, FirstDataAPIResponse, TopazBucket, WhereBucketValue
+from .pynest.models import (
+    Bucket,
+    FirstDataAPIResponse,
+    GoogleAuthResponse,
+    TopazBucket,
+    WhereBucketValue,
+)
 
 
 @dataclass
@@ -63,32 +72,54 @@ async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry):
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     """Set up Nest Protect from a config entry."""
-    issue_token = None
-    cookies = None
-    refresh_token = None
-
-    if CONF_ISSUE_TOKEN in entry.data and CONF_COOKIES in entry.data:
-        issue_token = entry.data[CONF_ISSUE_TOKEN]
-        cookies = entry.data[CONF_COOKIES]
-    if CONF_REFRESH_TOKEN in entry.data:
-        refresh_token = entry.data[CONF_REFRESH_TOKEN]
+    issue_token = entry.data.get(CONF_ISSUE_TOKEN)
+    cookies = entry.data.get(CONF_COOKIES)
+    refresh_token = entry.data.get(CONF_REFRESH_TOKEN)
+    stored_access_token, stored_expires_at = _get_stored_access_token(entry)
 
     session = async_create_clientsession(hass)
     account_type = entry.data[CONF_ACCOUNT_TYPE]
     client = NestClient(session=session, environment=NEST_ENVIRONMENTS[account_type])
 
-    try:
-        # Using user-retrieved cookies for authentication
-        if issue_token and cookies:
-            auth = await client.get_access_token_from_cookies(issue_token, cookies)
-        # Using refresh_token from legacy authentication method
-        elif refresh_token:
-            auth = await client.get_access_token_from_refresh_token(refresh_token)
+    auth = None
+    nest = None
 
-        nest = await client.authenticate(auth.access_token)
+    try:
+        if (
+            stored_access_token
+            and stored_expires_at
+            and _is_access_token_valid(stored_expires_at)
+        ):
+            try:
+                nest = await client.authenticate(stored_access_token)
+            except (TimeoutError, ClientError, PynestException) as exception:
+                LOGGER.debug(
+                    "Stored access token authentication failed, falling back.",
+                    exc_info=exception,
+                )
+
+        if nest is None:
+            # Using user-retrieved cookies for authentication
+            if issue_token and cookies:
+                auth = await client.get_access_token_from_cookies(issue_token, cookies)
+            # Using refresh_token from legacy authentication method
+            elif refresh_token:
+                auth = await client.get_access_token_from_refresh_token(refresh_token)
+            else:
+                raise ConfigEntryAuthFailed(
+                    "No authentication data available for Nest Protect."
+                )
+
+            _store_access_token(hass, entry, auth)
+            nest = await client.authenticate(auth.access_token)
     except (TimeoutError, ClientError) as exception:
         raise ConfigEntryNotReady from exception
     except BadCredentialsException as exception:
+        if "USER_LOGGED_OUT" in str(exception):
+            LOGGER.warning(
+                "Nest Protect authentication expired. Starting reauthentication."
+            )
+            hass.config_entries.async_start_reauth(entry)
         raise ConfigEntryAuthFailed from exception
     except Exception as exception:  # pylint: disable=broad-except
         LOGGER.exception("Unknown exception.")
@@ -313,3 +344,41 @@ async def async_remove_config_entry_device(
 ) -> bool:
     """Remove a config entry from a device."""
     return True
+
+
+def _get_stored_access_token(
+    entry: ConfigEntry,
+) -> tuple[str | None, datetime.datetime | None]:
+    access_token = entry.data.get(CONF_ACCESS_TOKEN) or entry.options.get(
+        CONF_ACCESS_TOKEN
+    )
+    expires_at_raw = entry.data.get(CONF_ACCESS_TOKEN_EXPIRES_AT) or entry.options.get(
+        CONF_ACCESS_TOKEN_EXPIRES_AT
+    )
+    if not access_token or not expires_at_raw:
+        return None, None
+
+    try:
+        expires_at = datetime.datetime.fromisoformat(expires_at_raw)
+    except ValueError:
+        LOGGER.debug("Stored access token expiry is invalid, ignoring value.")
+        return None, None
+
+    return access_token, expires_at
+
+
+def _is_access_token_valid(expires_at: datetime.datetime) -> bool:
+    return expires_at > datetime.datetime.now()
+
+
+def _store_access_token(
+    hass: HomeAssistant, entry: ConfigEntry, auth: GoogleAuthResponse
+) -> None:
+    hass.config_entries.async_update_entry(
+        entry,
+        data={
+            **entry.data,
+            CONF_ACCESS_TOKEN: auth.access_token,
+            CONF_ACCESS_TOKEN_EXPIRES_AT: auth.expiry_date.isoformat(),
+        },
+    )
