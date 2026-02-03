@@ -14,6 +14,13 @@
           "account_type": "Account Type"
         }
       },
+      "auth_method": {
+        "title": "Authentifizierungshilfe wählen",
+        "description": "Beide Optionen führen Sie durch das Abrufen von Anmeldeinformationen aus Ihrem Browser.\n\n**Wizard**: Für Benutzer, die mit Befehlszeilentools vertraut sind. Sie können optional `scripts/nest_protect_cookie_wizard.py` ausführen, um die Anmeldeinformationen automatisch zu extrahieren, bevor Sie fortfahren.\n\n**Manual**: Schritt-für-Schritt-Browseranweisungen werden auf der nächsten Seite angezeigt.",
+        "data": {
+          "auth_method": "Authentifizierungshilfe"
+        }
+      },
       "account_link": {
         "description": "Bitte holen Sie sich Ihr Issue_Token und Ihre Cookies gemäß den Anweisungen in der [Integrations-README](https://github.com/iMicknl/ha-nest-protect/#retrieving-issue_token-and-cookies) und fügen Sie sie unten ein.",
         "data": {

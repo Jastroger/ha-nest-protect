@@ -14,6 +14,13 @@
           "account_type": "Account type"
         }
       },
+      "auth_method": {
+        "title": "Kies authenticatiehulp",
+        "description": "Beide opties leiden u door het verkrijgen van inloggegevens uit uw browser.\n\n**Wizard**: Voor gebruikers die vertrouwd zijn met opdrachtregeltools. U kunt optioneel `scripts/nest_protect_cookie_wizard.py` uitvoeren om de inloggegevens automatisch te extraheren voordat u verdergaat.\n\n**Manual**: Stapsgewijze browserinstructies worden weergegeven op het volgende scherm.",
+        "data": {
+          "auth_method": "Authenticatiehulp"
+        }
+      },
       "account_link": {
         "description": "Verkrijg uw issue_token en cookies handmatig, volgens de instructies in de [README](https://github.com/iMicknl/ha-nest-protect/#retrieving-issue_token-and-cookies) en plak ze hieronder.",
         "data": {
