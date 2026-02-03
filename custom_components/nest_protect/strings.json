@@ -1,6 +1,17 @@
 {
   "config": {
     "step": {
+      "auth_method": {
+        "title": "Choose Authentication Help",
+        "description": "For the wizard flow, run `scripts/nest_protect_cookie_wizard.py`, complete the prompts, and then return here to paste the resulting `issue_token` and `cookies` values.",
+        "data": {
+          "auth_method": "Authentication help"
+        }
+      },
+      "auth_method_wizard": {
+        "title": "Run the Cookie Wizard",
+        "description": "Open a terminal and run `scripts/nest_protect_cookie_wizard.py`. When the script finishes, click **Continue** to paste the `issue_token` and `cookies` values."
+      },
       "user": {
         "description": "Select your Account Type. Most users will need to select Google Account. Field Test is only available for selected testers in the Google Field Test program.",
         "data": {
