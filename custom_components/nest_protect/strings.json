@@ -3,9 +3,21 @@
     "step": {
       "auth_method": {
         "title": "Choose Authentication Help",
-        "description": "Both options will guide you through getting credentials from your browser.\n\n**Wizard**: For users comfortable with command-line tools. You can optionally run `scripts/nest_protect_cookie_wizard.py` to automate credential extraction before continuing.\n\n**Manual**: Step-by-step browser instructions will be shown in the next screen.",
+        "description": "**Wizard (Recommended)**: Guided step-by-step process with clear instructions to extract credentials from your browser.\n\n**Manual**: Condensed instructions for users already familiar with browser developer tools.",
         "data": {
           "auth_method": "Authentication help"
+        }
+      },
+      "wizard_login": {
+        "title": "Wizard: Vereinfachte Credential-Erfassung",
+        "description": "## 🚀 Vereinfachte Anleitung\n\nDer Wizard bietet Ihnen eine **interaktive Hilfsseite** mit automatischer Validierung und Copy-Paste-Funktionen.\n\n### So funktioniert es:\n\n1. Öffnen Sie die Hilfsseite: [Credential Helper öffnen](/local/nest_protect/credential_helper.html)\n2. Folgen Sie den Schritten auf der Hilfsseite\n3. Die Seite hilft Ihnen, die Credentials zu erfassen und zu validieren\n4. Kopieren Sie die Werte und fügen Sie sie unten ein\n\n### Alternative: Direkter Ansatz\n\nWenn die Hilfsseite nicht funktioniert, können Sie die Credentials auch direkt hier eingeben. Folgen Sie dazu den Anweisungen in der manuellen Methode.\n\n⚠️ **Wichtig:** Verwenden Sie ein Inkognito-Fenster und aktivieren Sie Third-Party-Cookies!",
+        "data": {
+          "issue_token": "Issue Token URL",
+          "cookies": "Cookies"
+        },
+        "data_description": {
+          "issue_token": "Vollständige URL beginnend mit https://accounts.google.com/o/oauth2/iframerpc?action=issueToken...",
+          "cookies": "Vollständiger Cookie-String aus dem oauth2/iframe Request"
         }
       },
       "user": {

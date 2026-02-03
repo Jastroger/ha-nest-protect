@@ -140,9 +140,10 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         if user_input and CONF_AUTH_METHOD in user_input:
             self._auth_method = user_input[CONF_AUTH_METHOD]
-            # Both wizard and manual go to the same account_link step
-            # The wizard script is meant to be run before config flow, not during
-            return await self.async_step_account_link()
+            if self._auth_method == "wizard":
+                return await self.async_step_wizard_login()
+            else:
+                return await self.async_step_account_link()
 
         return self.async_show_form(
             step_id="auth_method",
@@ -157,6 +158,28 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 }
             ),
             errors=errors,
+        )
+
+    async def async_step_wizard_login(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Handle wizard-assisted login with automated credential extraction."""
+        if user_input:
+            # User has provided credentials (either manually or from wizard)
+            return await self.async_step_account_link(user_input)
+
+        # Show the wizard page with instructions and helper script
+        return self.async_show_form(
+            step_id="wizard_login",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_ISSUE_TOKEN): str,
+                    vol.Required(CONF_COOKIES): str,
+                }
+            ),
+            description_placeholders={
+                "nest_url": "https://home.nest.com",
+            },
         )
 
     async def async_step_account_type(

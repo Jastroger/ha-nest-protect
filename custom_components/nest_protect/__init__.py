@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import datetime
+import os
 from dataclasses import dataclass
 
 from aiohttp import ClientConnectorError, ClientError, ServerDisconnectedError
@@ -52,6 +53,21 @@ class HomeAssistantNestProtectData:
     areas: list[str, str]
     client: NestClient
     subscription_task: asyncio.Task | None = None
+
+
+async def async_setup(hass: HomeAssistant, config: dict):
+    """Set up the Nest Protect component."""
+    # Register www folder for credential helper
+    www_path = os.path.join(os.path.dirname(__file__), "www")
+    if os.path.exists(www_path):
+        hass.http.register_static_path(
+            "/local/nest_protect",
+            www_path,
+            cache_headers=False
+        )
+        LOGGER.debug("Registered static path for credential helper")
+    
+    return True
 
 
 async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry):
