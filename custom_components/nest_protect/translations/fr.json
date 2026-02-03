@@ -1,0 +1,85 @@
+{
+  "config": {
+    "abort": {
+      "already_configured": "Le compte est déjà configuré",
+      "reauth_successful": "Ré-authentification réussie!"
+    },
+    "error": {
+      "cannot_connect": "Échec de connexion",
+      "invalid_auth": "Authentification invalide",
+      "invalid_issue_token": "URL du jeton d'émission invalide. Doit commencer par https://accounts.google.com/ et contenir l'action issueToken.",
+      "invalid_cookies": "Format des cookies invalide. Assurez-vous d'avoir copié l'en-tête complet des cookies de la requête oauth2/iframe.",
+      "unknown": "Erreur inattendue"
+    },
+    "step": {
+      "user": {
+        "description": "Sélectionnez votre type de compte. La plupart des utilisateurs devront sélectionner Compte Google. Field Test n'est disponible que pour certains testeurs du programme Google Field Test.",
+        "data": {
+          "account_type": "Type de compte"
+        }
+      },
+      "auth_method": {
+        "title": "Choisir l'aide à l'authentification",
+        "description": "**Wizard (Recommandé)**: Processus guidé étape par étape avec une page d'aide interactive et une validation automatique.\n\n**Manual**: Instructions condensées pour les utilisateurs déjà familiarisés avec les outils de développement du navigateur.",
+        "data": {
+          "auth_method": "Aide à l'authentification"
+        }
+      },
+      "wizard_login": {
+        "title": "Wizard: Extraction simplifiée des identifiants",
+        "description": "## 🚀 Guide simplifié\n\nL'assistant vous fournit une **page d'aide interactive** avec validation automatique et fonctions copier-coller.\n\n### Comment ça marche:\n\n1. Ouvrez la page d'aide: [Ouvrir l'assistant](/local/nest_protect/credential_helper.html)\n2. Suivez les étapes sur la page d'aide\n3. La page vous aide à capturer et valider les identifiants\n4. Copiez les valeurs et collez-les ci-dessous\n\n### Alternative: Approche directe\n\nSi la page d'aide ne fonctionne pas, vous pouvez également saisir les identifiants directement ici. Suivez les instructions de la méthode manuelle pour cela.\n\n⚠️ **Important:** Utilisez une fenêtre de navigation privée et activez les cookies tiers!",
+        "data": {
+          "issue_token": "URL du jeton d'émission",
+          "cookies": "Cookies"
+        },
+        "data_description": {
+          "issue_token": "URL complète commençant par https://accounts.google.com/o/oauth2/iframerpc?action=issueToken...",
+          "cookies": "Chaîne complète des cookies de la requête oauth2/iframe"
+        }
+      },
+      "account_link": {
+        "title": "Connectez votre compte Nest",
+        "description": "Suivez ces étapes pour obtenir vos identifiants:\n\n1. Ouvrez une fenêtre de navigation **privée/Incognito**\n2. Activez les **cookies tiers** dans les paramètres du navigateur\n3. Allez sur [home.nest.com](https://home.nest.com) et connectez-vous avec Google\n4. Ouvrez les **Outils de développement** (F12) → Onglet **Network** → Cochez **Preserve Log**\n5. Dans le champ de filtre, tapez `issueToken` et copiez l'**URL de requête** complète\n6. Dans le champ de filtre, tapez `oauth2/iframe`, cliquez sur la dernière requête et copiez la valeur complète de l'en-tête **Cookie**\n\n⚠️ Ne vous déconnectez pas de home.nest.com après avoir copié les identifiants",
+        "data": {
+          "issue_token": "URL du jeton d'émission",
+          "cookies": "Cookies"
+        },
+        "data_description": {
+          "issue_token": "URL complète commençant par https://accounts.google.com/o/oauth2/iframerpc?action=issueToken...",
+          "cookies": "Chaîne complète des cookies de la requête oauth2/iframe"
+        }
+      }
+    }
+  },
+  "options": {
+    "abort": {
+      "already_configured": "Le compte est déjà configuré"
+    },
+    "error": {
+      "cannot_connect": "Échec de connexion",
+      "invalid_auth": "Authentification invalide",
+      "unknown": "Erreur inattendue"
+    },
+    "step": {
+      "account_link": {
+        "description": "Veuillez récupérer votre jeton d'émission et vos cookies en suivant les instructions du fichier README d'intégration et collez-les ci-dessous.",
+        "data": {
+          "issue_token": "URL du jeton d'émission",
+          "cookies": "Cookies"
+        }
+      }
+    }
+  },
+  "entity": {
+    "select": {
+      "night_light_brightness": {
+        "name": "Luminosité de la veilleuse",
+        "state": {
+          "low": "Faible",
+          "medium": "Moyen",
+          "high": "Élevé"
+        }
+      }
+    }
+  }
+}
