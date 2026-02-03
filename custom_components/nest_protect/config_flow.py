@@ -74,9 +74,16 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         session = async_create_clientsession(self.hass)
         client = NestClient(session=session, environment=NEST_ENVIRONMENTS[environment])
 
-        issue_token = user_input.get(CONF_ISSUE_TOKEN)
-        cookies = user_input.get(CONF_COOKIES)
-        refresh_token = user_input.get(CONF_REFRESH_TOKEN)
+        issue_token = None
+        cookies = None
+        refresh_token = None
+
+        if CONF_ISSUE_TOKEN in user_input:
+            issue_token = user_input[CONF_ISSUE_TOKEN]
+        if CONF_COOKIES in user_input:
+            cookies = user_input[CONF_COOKIES]
+        if CONF_REFRESH_TOKEN in user_input:
+            refresh_token = user_input[CONF_REFRESH_TOKEN]
 
         if issue_token and cookies:
             auth = await client.get_access_token_from_cookies(issue_token, cookies)
