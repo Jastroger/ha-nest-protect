@@ -70,9 +70,9 @@ async def async_setup(hass: HomeAssistant, config: dict):
                 ]
             )
             LOGGER.debug("Registered static path for credential helper at %s", www_path)
-        except (ValueError, KeyError) as e:
-            # Path is already registered, which is fine
-            LOGGER.debug("Static path already registered or error: %s", e)
+        except Exception as e:
+            # Path might already be registered, log but continue
+            LOGGER.debug("Static path registration issue (may already be registered): %s", e)
     
     return True
 
