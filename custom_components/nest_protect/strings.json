@@ -15,16 +15,16 @@
           "cookies": "Cookies"
         },
         "data_description": {
-          "issue_token": "Full URL starting with https://accounts.google.com/o/oauth2/iframerpc?action=issueToken...",
-          "cookies": "Complete cookie string from the oauth2/iframe request headers"
+          "issue_token": "Paste the full Request URL from the issueToken network call, including all query parameters.",
+          "cookies": "Paste the full Cookie header value from the oauth2/iframe request (include every key=value pair, even if it wraps onto multiple lines)."
         }
       }
     },
     "error": {
       "cannot_connect": "[%key:common::config_flow::error::cannot_connect%]",
       "invalid_auth": "[%key:common::config_flow::error::invalid_auth%]",
-      "invalid_issue_token": "Invalid issue token URL. Must start with https://accounts.google.com/ and contain the issueToken action.",
-      "invalid_cookies": "Invalid cookies format. Ensure you copied the complete cookie header from the oauth2/iframe request.",
+      "invalid_issue_token": "Invalid issue token URL. Paste the full Request URL from the issueToken call, including query parameters.",
+      "invalid_cookies": "Invalid cookie header. Paste the entire Cookie header from the oauth2/iframe request with all key=value pairs.",
       "unknown": "[%key:common::config_flow::error::unknown%]"
     },
     "abort": {
