@@ -38,7 +38,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     _default_account_type: Environment = Environment.PRODUCTION
     _auth_method: str = "wizard"
 
-    def _ensure_static_path_registered(self) -> None:
+    async def _ensure_static_path_registered(self) -> None:
         """Ensure the www folder is registered for the credential helper.
 
         This is called during config flow to make the helper accessible
@@ -47,10 +47,13 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         www_path = os.path.join(os.path.dirname(__file__), "www")
         if os.path.exists(www_path):
             try:
-                self.hass.http.register_static_path(
-                    "/local/nest_protect",
-                    www_path,
-                    cache_headers=False
+                await self.hass.http.async_register_static_paths(
+                    [
+                        {
+                            "path": "/local/nest_protect",
+                            "directory": www_path,
+                        }
+                    ]
                 )
                 LOGGER.debug("Registered static path for credential helper at %s", www_path)
             except (ValueError, KeyError) as e:
@@ -153,7 +156,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     ) -> FlowResult:
         """Handle the initial step."""
         # Ensure static path is registered for credential helper
-        self._ensure_static_path_registered()
+        await self._ensure_static_path_registered()
         return await self.async_step_account_type(user_input)
 
     async def async_step_auth_method(
@@ -189,7 +192,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     ) -> FlowResult:
         """Handle wizard-assisted login with automated credential extraction."""
         # Ensure static path is registered for the credential helper
-        self._ensure_static_path_registered()
+        await self._ensure_static_path_registered()
         
         if user_input:
             # User has provided credentials (either manually or from wizard)

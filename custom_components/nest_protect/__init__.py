@@ -61,12 +61,15 @@ async def async_setup(hass: HomeAssistant, config: dict):
     www_path = os.path.join(os.path.dirname(__file__), "www")
     if os.path.exists(www_path):
         try:
-            hass.http.register_static_path(
-                "/local/nest_protect",
-                www_path,
-                cache_headers=False
+            await hass.http.async_register_static_paths(
+                [
+                    {
+                        "path": "/local/nest_protect",
+                        "directory": www_path,
+                    }
+                ]
             )
-            LOGGER.debug("Registered static path for credential helper")
+            LOGGER.debug("Registered static path for credential helper at %s", www_path)
         except (ValueError, KeyError) as e:
             # Path is already registered, which is fine
             LOGGER.debug("Static path already registered or error: %s", e)
