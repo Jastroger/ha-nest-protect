@@ -36,6 +36,18 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     _default_account_type: Environment = Environment.PRODUCTION
 
     @staticmethod
+    def _normalize_issue_token(issue_token: str) -> str:
+        """Normalize issue token input for validation."""
+        return issue_token.strip()
+
+    @staticmethod
+    def _normalize_cookies(cookies: str) -> str:
+        """Normalize cookie header input for validation."""
+        lines = (line.strip() for line in cookies.splitlines())
+        compact = " ".join(line for line in lines if line)
+        return " ".join(compact.split())
+
+    @staticmethod
     def _validate_issue_token(issue_token: str) -> bool:
         """Validate issue token format.
 
@@ -144,10 +156,12 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         if user_input:
             user_input[CONF_ACCOUNT_TYPE] = self._default_account_type
-            issue_token = user_input.get(CONF_ISSUE_TOKEN, "").strip()
-            cookies = user_input.get(CONF_COOKIES, "").strip()
-            # Store stripped values back so downstream validation and API calls
-            # use the normalized credentials
+            issue_token = self._normalize_issue_token(
+                user_input.get(CONF_ISSUE_TOKEN, "")
+            )
+            cookies = self._normalize_cookies(user_input.get(CONF_COOKIES, ""))
+            # Store normalized values back so downstream validation and API calls
+            # use consistent credentials.
             user_input[CONF_ISSUE_TOKEN] = issue_token
             user_input[CONF_COOKIES] = cookies
 
