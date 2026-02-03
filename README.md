@@ -38,6 +38,30 @@ Copy the `custom_components/nest_protect` to your custom_components folder and r
 
 (adapted from [homebridge-nest documentation](https://github.com/chrisjshull/homebridge-nest))
 
+### Option A: Playwright cookie wizard (recommended)
+
+The helper script in `scripts/nest_protect_cookie_wizard.py` launches a local browser with Playwright, guides you through Google login, and extracts the required values from network requests. The script runs entirely on your machine and does not send credentials to external services.
+
+**Prerequisites**
+
+- Python 3.10+
+- Playwright installed: `pip install playwright`
+- Playwright browser binaries installed: `playwright install chromium`
+
+**Run**
+
+```
+./scripts/nest_protect_cookie_wizard.py
+```
+
+**Limitations**
+
+- Google 2FA prompts must be completed in the browser window.
+- You may see Google consent screens depending on your account.
+- Google anti-automation protections can occasionally block or slow the flow; retry in a fresh session if needed.
+
+### Option B: Manual browser steps
+
 The values of "issue_token" and "cookies" are specific to your Google Account. To get them, follow these steps (only needs to be done once, as long as you stay logged into your Google Account).
 
 1. Open a Chrome/Edge browser tab in Incognito Mode.
