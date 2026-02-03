@@ -18,6 +18,25 @@
           "account_type": "Account Type"
         }
       },
+      "auth_method": {
+        "title": "Choose Authentication Help",
+        "description": "**Wizard (Recommended)**: Guided step-by-step process with an interactive helper page and automatic validation.\n\n**Manual**: Condensed instructions for users already familiar with browser developer tools.",
+        "data": {
+          "auth_method": "Authentication help"
+        }
+      },
+      "wizard_login": {
+        "title": "Wizard: Simplified Credential Extraction",
+        "description": "## 🚀 Simplified Guide\n\nThe wizard provides you with an **interactive helper page** with automatic validation and copy-paste functions.\n\n### How it works:\n\n1. Open the helper page: [Open Credential Helper](/local/nest_protect/credential_helper.html)\n2. Follow the steps on the helper page\n3. The page helps you capture and validate the credentials\n4. Copy the values and paste them below\n\n### Alternative: Direct Approach\n\nIf the helper page doesn't work, you can also enter the credentials directly here. Follow the instructions in the manual method for that.\n\n⚠️ **Important:** Use an incognito window and enable third-party cookies!",
+        "data": {
+          "issue_token": "Issue Token URL",
+          "cookies": "Cookies"
+        },
+        "data_description": {
+          "issue_token": "Full URL starting with https://accounts.google.com/o/oauth2/iframerpc?action=issueToken...",
+          "cookies": "Complete cookie string from the oauth2/iframe request headers"
+        }
+      },
       "account_link": {
         "title": "Connect Your Nest Account",
         "description": "Follow these steps to get your credentials:\n\n1. Open an **Incognito/Private** browser window\n2. Enable **third-party cookies** in browser settings\n3. Go to [home.nest.com](https://home.nest.com) and sign in with Google\n4. Open **Developer Tools** (F12) → **Network** tab → Check **Preserve Log**\n5. In the filter box, type `issueToken` and copy the full **Request URL**\n6. In the filter box, type `oauth2/iframe`, click the last request, and copy the entire **Cookie** header value\n\n⚠️ Do not log out of home.nest.com after copying credentials",

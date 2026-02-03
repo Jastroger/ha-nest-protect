@@ -14,6 +14,25 @@
           "account_type": "Account type"
         }
       },
+      "auth_method": {
+        "title": "Kies authenticatiehulp",
+        "description": "**Wizard (Aanbevolen)**: Begeleide stapsgewijze proces met een interactieve hulppagina en automatische validatie.\n\n**Manual**: Verkorte instructies voor gebruikers die al vertrouwd zijn met de ontwikkelaarstools van de browser.",
+        "data": {
+          "auth_method": "Authenticatiehulp"
+        }
+      },
+      "wizard_login": {
+        "title": "Wizard: Vereenvoudigde credential-extractie",
+        "description": "## 🚀 Vereenvoudigde handleiding\n\nDe wizard biedt u een **interactieve hulppagina** met automatische validatie en kopieer-plak functies.\n\n### Hoe het werkt:\n\n1. Open de hulppagina: [Open Credential Helper](/local/nest_protect/credential_helper.html)\n2. Volg de stappen op de hulppagina\n3. De pagina helpt u de inloggegevens vast te leggen en te valideren\n4. Kopieer de waarden en plak ze hieronder\n\n### Alternatief: Directe benadering\n\nAls de hulppagina niet werkt, kunt u de inloggegevens ook direct hier invoeren. Volg hiervoor de instructies bij de handmatige methode.\n\n⚠️ **Belangrijk:** Gebruik een incognito-venster en schakel cookies van derden in!",
+        "data": {
+          "issue_token": "Issue Token URL",
+          "cookies": "Cookies"
+        },
+        "data_description": {
+          "issue_token": "Volledige URL die begint met https://accounts.google.com/o/oauth2/iframerpc?action=issueToken...",
+          "cookies": "Volledige cookie-string van de oauth2/iframe request headers"
+        }
+      },
       "account_link": {
         "description": "Verkrijg uw issue_token en cookies handmatig, volgens de instructies in de [README](https://github.com/iMicknl/ha-nest-protect/#retrieving-issue_token-and-cookies) en plak ze hieronder.",
         "data": {

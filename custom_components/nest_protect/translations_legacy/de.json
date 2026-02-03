@@ -14,6 +14,25 @@
           "account_type": "Account Type"
         }
       },
+      "auth_method": {
+        "title": "Authentifizierungshilfe wählen",
+        "description": "**Wizard (Empfohlen)**: Geführter Schritt-für-Schritt-Prozess mit einer interaktiven Hilfsseite und automatischer Validierung.\n\n**Manual**: Komprimierte Anweisungen für Benutzer, die bereits mit den Entwicklertools des Browsers vertraut sind.",
+        "data": {
+          "auth_method": "Authentifizierungshilfe"
+        }
+      },
+      "wizard_login": {
+        "title": "Wizard: Vereinfachte Credential-Erfassung",
+        "description": "## 🚀 Vereinfachte Anleitung\n\nDer Wizard bietet Ihnen eine **interaktive Hilfsseite** mit automatischer Validierung und Copy-Paste-Funktionen.\n\n### So funktioniert es:\n\n1. Öffnen Sie die Hilfsseite: [Credential Helper öffnen](/local/nest_protect/credential_helper.html)\n2. Folgen Sie den Schritten auf der Hilfsseite\n3. Die Seite hilft Ihnen, die Credentials zu erfassen und zu validieren\n4. Kopieren Sie die Werte und fügen Sie sie unten ein\n\n### Alternative: Direkter Ansatz\n\nWenn die Hilfsseite nicht funktioniert, können Sie die Credentials auch direkt hier eingeben. Folgen Sie dazu den Anweisungen in der manuellen Methode.\n\n⚠️ **Wichtig:** Verwenden Sie ein Inkognito-Fenster und aktivieren Sie Third-Party-Cookies!",
+        "data": {
+          "issue_token": "Issue Token URL",
+          "cookies": "Cookies"
+        },
+        "data_description": {
+          "issue_token": "Vollständige URL beginnend mit https://accounts.google.com/o/oauth2/iframerpc?action=issueToken...",
+          "cookies": "Vollständiger Cookie-String aus dem oauth2/iframe Request"
+        }
+      },
       "account_link": {
         "description": "Bitte holen Sie sich Ihr Issue_Token und Ihre Cookies gemäß den Anweisungen in der [Integrations-README](https://github.com/iMicknl/ha-nest-protect/#retrieving-issue_token-and-cookies) und fügen Sie sie unten ein.",
         "data": {

@@ -14,6 +14,25 @@
           "account_type": "Tipo de conta"
         }
       },
+      "auth_method": {
+        "title": "Escolha a ajuda de autenticação",
+        "description": "**Wizard (Recomendado)**: Processo guiado passo a passo com uma página de ajuda interativa e validação automática.\n\n**Manual**: Instruções condensadas para usuários já familiarizados com as ferramentas de desenvolvedor do navegador.",
+        "data": {
+          "auth_method": "Ajuda de autenticação"
+        }
+      },
+      "wizard_login": {
+        "title": "Wizard: Extração simplificada de credenciais",
+        "description": "## 🚀 Guia simplificado\n\nO assistente fornece uma **página de ajuda interativa** com validação automática e funções de copiar e colar.\n\n### Como funciona:\n\n1. Abra a página de ajuda: [Abrir Assistente de Credenciais](/local/nest_protect/credential_helper.html)\n2. Siga as etapas na página de ajuda\n3. A página ajuda você a capturar e validar as credenciais\n4. Copie os valores e cole-os abaixo\n\n### Alternativa: Abordagem direta\n\nSe a página de ajuda não funcionar, você também pode inserir as credenciais diretamente aqui. Siga as instruções do método manual para isso.\n\n⚠️ **Importante:** Use uma janela anônima e ative cookies de terceiros!",
+        "data": {
+          "issue_token": "URL do Token de Emissão",
+          "cookies": "Cookies"
+        },
+        "data_description": {
+          "issue_token": "URL completa começando com https://accounts.google.com/o/oauth2/iframerpc?action=issueToken...",
+          "cookies": "String completa de cookies dos cabeçalhos da solicitação oauth2/iframe"
+        }
+      },
       "account_link": {
         "description": "Obtenha seu issue_token e cookies seguindo as instruções no [LEIA-ME](https://github.com/iMicknl/ha-nest-protect/#retrieving-issue_token-and-cookies) de integração e cole-os abaixo.",
         "data": {
