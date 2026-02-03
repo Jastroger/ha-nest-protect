@@ -16,6 +16,8 @@ CONF_ACCOUNT_TYPE: Final = "account_type"
 CONF_REFRESH_TOKEN: Final = "refresh_token"
 CONF_ISSUE_TOKEN: Final = "issue_token"
 CONF_COOKIES: Final = "cookies"
+CONF_ACCESS_TOKEN: Final = "access_token"
+CONF_ACCESS_TOKEN_EXPIRES_AT: Final = "access_token_expires_at"
 
 PLATFORMS: list[Platform] = [
     Platform.BINARY_SENSOR,

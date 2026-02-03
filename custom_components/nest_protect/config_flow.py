@@ -13,6 +13,8 @@ import voluptuous as vol
 
 from .const import (
     CONF_ACCOUNT_TYPE,
+    CONF_ACCESS_TOKEN,
+    CONF_ACCESS_TOKEN_EXPIRES_AT,
     CONF_COOKIES,
     CONF_ISSUE_TOKEN,
     CONF_REFRESH_TOKEN,
@@ -65,23 +67,23 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         google_auth_markers = ("APISID=", "SAPISID=", "HSID=", "SSID=", "SID=")
         return any(marker in cookies for marker in google_auth_markers)
 
-    async def async_validate_input(self, user_input: dict[str, Any]) -> list:
+    async def async_validate_input(self, user_input: dict[str, Any]) -> dict[str, Any]:
         """Validate user credentials."""
 
         environment = user_input[CONF_ACCOUNT_TYPE]
         session = async_create_clientsession(self.hass)
         client = NestClient(session=session, environment=NEST_ENVIRONMENTS[environment])
 
-        if CONF_ISSUE_TOKEN in user_input and CONF_COOKIES in user_input:
-            issue_token = user_input[CONF_ISSUE_TOKEN]
-            cookies = user_input[CONF_COOKIES]
-        if CONF_REFRESH_TOKEN in user_input:
-            refresh_token = user_input[CONF_REFRESH_TOKEN]
+        issue_token = user_input.get(CONF_ISSUE_TOKEN)
+        cookies = user_input.get(CONF_COOKIES)
+        refresh_token = user_input.get(CONF_REFRESH_TOKEN)
 
         if issue_token and cookies:
             auth = await client.get_access_token_from_cookies(issue_token, cookies)
         elif refresh_token:
             auth = await client.get_access_token_from_refresh_token(refresh_token)
+        else:
+            raise BadCredentialsException("No authentication data provided.")
 
         nest = await client.authenticate(auth.access_token)
         data = await client.get_first_data(nest.access_token, nest.userid)
@@ -95,7 +97,13 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         # Set unique id to user_id (object.key: user.xxxx)
         await self.async_set_unique_id(nest.user)
 
-        return [issue_token, cookies, email]
+        return {
+            "email": email,
+            "token_payload": {
+                CONF_ACCESS_TOKEN: auth.access_token,
+                CONF_ACCESS_TOKEN_EXPIRES_AT: auth.expiry_date.isoformat(),
+            },
+        }
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
@@ -144,9 +152,9 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
             if not errors:
                 try:
-                    [issue_token, cookies, email] = await self.async_validate_input(
-                        user_input
-                    )
+                    validation = await self.async_validate_input(user_input)
+                    email = validation["email"]
+                    token_payload = validation["token_payload"]
                 except (TimeoutError, ClientError):
                     errors["base"] = "cannot_connect"
                 except BadCredentialsException:
@@ -163,6 +171,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         data={
                             **self._config_entry.data,
                             **user_input,
+                            **token_payload,
                         },
                     )
 
@@ -176,8 +185,9 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
                 self._abort_if_unique_id_configured()
 
+                entry_data = {**user_input, **token_payload}
                 return self.async_create_entry(
-                    title=f"Nest Protect ({email})", data=user_input
+                    title=f"Nest Protect ({email})", data=entry_data
                 )
 
         return self.async_show_form(
