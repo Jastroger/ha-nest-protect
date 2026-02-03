@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass
 import datetime
+from dataclasses import dataclass
 from pathlib import Path
 
 from aiohttp import ClientConnectorError, ClientError, ServerDisconnectedError
