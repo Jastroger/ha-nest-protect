@@ -81,6 +81,24 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         google_auth_markers = ("APISID=", "SAPISID=", "HSID=", "SSID=", "SID=")
         return any(marker in cookies for marker in google_auth_markers)
 
+    def _normalize_and_validate_credentials(
+        self, user_input: dict[str, Any]
+    ) -> dict[str, str]:
+        """Normalize and validate issue token and cookies."""
+        issue_token = self._normalize_issue_token(user_input.get(CONF_ISSUE_TOKEN, ""))
+        cookies = self._normalize_cookies(user_input.get(CONF_COOKIES, ""))
+
+        user_input[CONF_ISSUE_TOKEN] = issue_token
+        user_input[CONF_COOKIES] = cookies
+
+        errors: dict[str, str] = {}
+        if not self._validate_issue_token(issue_token):
+            errors[CONF_ISSUE_TOKEN] = "invalid_issue_token"
+        elif not self._validate_cookies(cookies):
+            errors[CONF_COOKIES] = "invalid_cookies"
+
+        return errors
+
     async def async_validate_input(self, user_input: dict[str, Any]) -> dict[str, Any]:
         """Validate user credentials."""
 
@@ -165,7 +183,22 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     ) -> FlowResult:
         """Handle wizard-assisted login with automated credential extraction."""
         if user_input:
-            # User has provided credentials (either manually or from wizard)
+            errors = self._normalize_and_validate_credentials(user_input)
+            if errors:
+                return self.async_show_form(
+                    step_id="wizard_login",
+                    data_schema=vol.Schema(
+                        {
+                            vol.Required(CONF_ISSUE_TOKEN): str,
+                            vol.Required(CONF_COOKIES): str,
+                        }
+                    ),
+                    errors=errors,
+                    description_placeholders={
+                        "nest_url": "https://home.nest.com",
+                    },
+                )
+
             return await self.async_step_account_link(user_input)
 
         # Show the wizard page with instructions and helper script
@@ -214,20 +247,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         if user_input:
             user_input[CONF_ACCOUNT_TYPE] = self._default_account_type
-            issue_token = self._normalize_issue_token(
-                user_input.get(CONF_ISSUE_TOKEN, "")
-            )
-            cookies = self._normalize_cookies(user_input.get(CONF_COOKIES, ""))
-            # Store normalized values back so downstream validation and API calls
-            # use consistent credentials.
-            user_input[CONF_ISSUE_TOKEN] = issue_token
-            user_input[CONF_COOKIES] = cookies
-
-            # Validate input format before making API calls
-            if not self._validate_issue_token(issue_token):
-                errors[CONF_ISSUE_TOKEN] = "invalid_issue_token"
-            elif not self._validate_cookies(cookies):
-                errors[CONF_COOKIES] = "invalid_cookies"
+            errors = self._normalize_and_validate_credentials(user_input)
 
             if not errors:
                 try:
