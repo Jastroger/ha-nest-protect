@@ -32,6 +32,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Config flow for Nest Protect."""
 
     VERSION = 3
+    _ISSUE_TOKEN_URL_PREFIX = "https://accounts.google.com/o/oauth2/iframerpc"
 
     _config_entry: ConfigEntry | None = None
     _default_account_type: Environment = Environment.PRODUCTION
@@ -56,7 +57,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         The issue token URL should be from Google OAuth iframerpc endpoint
         with the issueToken action parameter.
         """
-        if not issue_token.startswith("https://accounts.google.com/o/oauth2/iframerpc"):
+        if not issue_token.startswith(ConfigFlow._ISSUE_TOKEN_URL_PREFIX):
             return False
         if "action=issueToken" not in issue_token:
             return False
@@ -81,12 +82,44 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         google_auth_markers = ("APISID=", "SAPISID=", "HSID=", "SSID=", "SID=")
         return any(marker in cookies for marker in google_auth_markers)
 
+    @staticmethod
+    def _split_issue_token_and_cookies(
+        issue_token: str, cookies: str
+    ) -> tuple[str, str]:
+        """Split combined issue token input when pasted with cookies."""
+        lines = [line.strip() for line in issue_token.splitlines() if line.strip()]
+        if len(lines) <= 1:
+            return issue_token, cookies
+
+        url_index = next(
+            (
+                index
+                for index, line in enumerate(lines)
+                if line.startswith(ConfigFlow._ISSUE_TOKEN_URL_PREFIX)
+            ),
+            None,
+        )
+        if url_index is None:
+            return issue_token, cookies
+
+        remaining_lines = [line for index, line in enumerate(lines) if index != url_index]
+        if remaining_lines and not cookies.strip():
+            cookies = "\n".join(remaining_lines)
+
+        return lines[url_index], cookies
+
     def _normalize_and_validate_credentials(
         self, user_input: dict[str, Any]
     ) -> dict[str, str]:
         """Normalize and validate issue token and cookies."""
-        issue_token = self._normalize_issue_token(user_input.get(CONF_ISSUE_TOKEN, ""))
-        cookies = self._normalize_cookies(user_input.get(CONF_COOKIES, ""))
+        issue_token_raw = user_input.get(CONF_ISSUE_TOKEN, "")
+        cookies_raw = user_input.get(CONF_COOKIES, "")
+        issue_token_raw, cookies_raw = self._split_issue_token_and_cookies(
+            issue_token_raw,
+            cookies_raw,
+        )
+        issue_token = self._normalize_issue_token(issue_token_raw)
+        cookies = self._normalize_cookies(cookies_raw)
 
         user_input[CONF_ISSUE_TOKEN] = issue_token
         user_input[CONF_COOKIES] = cookies
