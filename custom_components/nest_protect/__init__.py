@@ -51,7 +51,7 @@ class HomeAssistantNestProtectData:
     """Nest Protect data stored in the Home Assistant data object."""
 
     devices: dict[str, Bucket]
-    areas: list[str, str]
+    areas: dict[str, str]
     client: NestClient
     subscription_task: asyncio.Task | None = None
 

@@ -157,7 +157,7 @@ class NestClient:
                 # Cookie method
                 if result["error"] == "USER_LOGGED_OUT":
                     raise BadCredentialsException(
-                        f"{result["error"]} - {result["detail"]}"
+                        f"{result['error']} - {result['detail']}"
                     )
 
                 raise Exception(result["error"])
