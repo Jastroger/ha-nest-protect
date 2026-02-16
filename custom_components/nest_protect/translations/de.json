@@ -7,6 +7,8 @@
     "error": {
       "cannot_connect": "Verbindung fehlgeschlagen",
       "invalid_auth": "Ungültige Authentifizierung",
+      "missing_issue_token": "Issue Token URL ist erforderlich. Bitte fügen Sie die vollständige Request URL aus dem issueToken-Netzwerkaufruf ein.",
+      "missing_cookies": "Cookies sind erforderlich. Bitte fügen Sie den vollständigen Cookie-Header aus der oauth2/iframe-Anfrage ein.",
       "invalid_issue_token": "Ungültige Issue Token URL. Muss mit https://accounts.google.com/ beginnen und die issueToken-Aktion enthalten.",
       "invalid_cookies": "Ungültiges Cookie-Format. Stellen Sie sicher, dass Sie den vollständigen Cookie-Header aus der oauth2/iframe-Anfrage kopiert haben.",
       "unknown": "Unerwarteter Fehler"
@@ -27,14 +29,14 @@
       },
       "wizard_login": {
         "title": "Wizard: Schnelle Einrichtung",
-        "description": "## 🚀 Schnelle & Einfache Credential-Erfassung\n\n**Nur 3 einfache Schritte:**\n\n### Schritt 1: Nest im privaten Browser öffnen\n\n1. Öffnen Sie [home.nest.com](https://home.nest.com) in einem **privaten/Inkognito-Fenster**\n2. **Melden Sie sich an** mit Ihrem Google-Konto\n3. Aktivieren Sie **Third-Party-Cookies** falls aufgefordert\n\n### Schritt 2: Führen Sie das Hilfs-Script aus\n\n1. Drücken Sie **F12** auf Ihrer Tastatur (oder Rechtsklick → Untersuchen)\n2. Klicken Sie auf den **Console**-Tab\n3. Kopieren und fügen Sie dieses Ein-Zeilen-Script ein:\n\n**Kopieren Sie dies:**\n\n    (async()=>'{'try'{'if(!location.hostname.includes('nest.com'))return alert('❌ Auf home.nest.com ausführen');const t=performance.getEntriesByType('resource').find(e=>e.name.includes('issueToken'));if(!t)return alert('❌ Kein Token gefunden. Seite aktualisieren und erneut versuchen');const i=t.name,c=document.cookie;if(!i.startsWith('https://accounts.google.com/o/oauth2/iframerpc')||!i.includes('action=issueToken'))return alert('❌ Ungültiger Token');if(!c||c.length<100)return alert('❌ Bitte zuerst anmelden');await navigator.clipboard.writeText(i+'\\n\\n'+c);alert('✅ Kopiert! Unten in Home Assistant einfügen')'}'catch(e)'{'alert('❌ Fehler: '+e.message)'}''}')();\n\n4. Drücken Sie **Enter** - Credentials werden automatisch kopiert!\n\n### Schritt 3: Unten einfügen\n\nDie Credentials sind jetzt in Ihrer Zwischenablage. Fügen Sie sie einfach in die Felder unten ein:\n- Erste Zeile kommt in **Issue Token URL**\n- Alles andere kommt in **Cookies**\n\n💡 **Tipp**: Auf Mobilgeräten verwenden Sie Chrome oder Safari im privaten Modus und aktivieren Sie Desktop-Ansicht für einfacheren Konsolen-Zugriff.",
+        "description": "## 🚀 Schnelle & Einfache Credential-Erfassung\n\n**Empfohlene Optionen (zuverlässig):**\n\n### Option A: Netzwerk-Header (Empfohlen)\n\n1. Öffnen Sie [home.nest.com](https://home.nest.com) in einem **privaten/Inkognito-Fenster**\n2. **Melden Sie sich an** mit Ihrem Google-Konto\n3. Öffnen Sie die **Entwicklertools** → **Netzwerk**-Tab → Aktivieren Sie **Protokoll beibehalten**\n4. Filtern Sie nach `issueToken` und kopieren Sie die vollständige **Anfrage-URL**\n5. Filtern Sie nach `oauth2/iframe`, öffnen Sie die letzte Anfrage und kopieren Sie den vollständigen **Cookie**-Header-Wert\n\n**Wichtig:** Kopieren Sie den **Cookie-Header** aus der `oauth2/iframe`-Anfrage, **nicht** `document.cookie`.\n\n### Option B: Playwright Wizard (Empfohlen)\n\nFühren Sie das Hilfsskript aus dem Repository aus:\n\n`python3 scripts/nest_protect_cookie_wizard.py`\n\nEs führt Sie durch denselben Ablauf und kopiert die **Issue Token URL** und den **Cookie-Header** für Sie.\n\n### Nicht empfohlen: Konsolen-Snippets\n\nKonsolen-Snippets sind **unzuverlässig** und liefern oft unvollständige Cookies. Verwenden Sie stattdessen die Netzwerk-Header-Methode oder den Playwright-Wizard.\n\n### Unten einfügen\n\n**💡 Tipp:** Sie können beide Werte durch einen Zeilenumbruch getrennt in das erste Feld einfügen, und sie werden automatisch in die richtigen Felder aufgeteilt.\n\nFügen Sie die Werte in die Felder unten ein:\n- **Issue Token URL**: die vollständige Anfrage-URL von `issueToken`\n- **Cookies**: der vollständige **Cookie**-Header-Wert von `oauth2/iframe`",
         "data": {
           "issue_token": "Issue Token URL",
-          "cookies": "Cookies"
+          "cookies": "Cookies (optional, falls oben eingefügt)"
         },
         "data_description": {
-          "issue_token": "Aus Zwischenablage einfügen (beginnt mit https://accounts.google.com/o/oauth2/iframerpc)",
-          "cookies": "Aus Zwischenablage einfügen"
+          "issue_token": "Aus Zwischenablage einfügen (beginnt mit https://accounts.google.com/o/oauth2/iframerpc). Sie können sowohl Token als auch Cookies hier durch einen Zeilenumbruch getrennt einfügen.",
+          "cookies": "Aus Zwischenablage einfügen (leer lassen, falls bereits oben mit Token eingefügt)"
         }
       },
       "account_link": {
