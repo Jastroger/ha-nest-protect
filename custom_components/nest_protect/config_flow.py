@@ -86,7 +86,15 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     def _split_issue_token_and_cookies(
         issue_token: str, cookies: str
     ) -> tuple[str, str]:
-        """Split combined issue token input when pasted with cookies."""
+        """Split combined issue token input when pasted with cookies.
+
+        This method attempts to intelligently parse the input to extract
+        both the issue token URL and cookies, even when pasted together.
+        """
+        # If cookies field already has content, don't try to split
+        if cookies.strip():
+            return issue_token, cookies
+
         lines = [line.strip() for line in issue_token.splitlines() if line.strip()]
         if len(lines) <= 1:
             return issue_token, cookies
@@ -102,8 +110,11 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if url_index is None:
             return issue_token, cookies
 
-        remaining_lines = [line for index, line in enumerate(lines) if index != url_index]
-        if remaining_lines and not cookies.strip():
+        # Extract remaining lines as cookies
+        remaining_lines = [
+            line for index, line in enumerate(lines) if index != url_index
+        ]
+        if remaining_lines:
             cookies = "\n".join(remaining_lines)
 
         return lines[url_index], cookies
@@ -111,7 +122,10 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     def _normalize_and_validate_credentials(
         self, user_input: dict[str, Any]
     ) -> dict[str, str]:
-        """Normalize and validate issue token and cookies."""
+        """Normalize and validate issue token and cookies.
+
+        Returns a dict of field-specific error messages.
+        """
         issue_token_raw = user_input.get(CONF_ISSUE_TOKEN, "")
         cookies_raw = user_input.get(CONF_COOKIES, "")
         issue_token_raw, cookies_raw = self._split_issue_token_and_cookies(
@@ -125,8 +139,19 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         user_input[CONF_COOKIES] = cookies
 
         errors: dict[str, str] = {}
-        if not self._validate_issue_token(issue_token):
+
+        # Validate issue token first
+        if not issue_token:
+            errors[CONF_ISSUE_TOKEN] = "missing_issue_token"
+        elif not self._validate_issue_token(issue_token):
             errors[CONF_ISSUE_TOKEN] = "invalid_issue_token"
+
+        # Then validate cookies
+        # Note: Cookies field is optional in the UI (users can paste both values
+        # in the issue_token field), but after auto-splitting, cookies are still
+        # required for authentication.
+        if not cookies:
+            errors[CONF_COOKIES] = "missing_cookies"
         elif not self._validate_cookies(cookies):
             errors[CONF_COOKIES] = "invalid_cookies"
 
@@ -223,7 +248,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     data_schema=vol.Schema(
                         {
                             vol.Required(CONF_ISSUE_TOKEN): str,
-                            vol.Required(CONF_COOKIES): str,
+                            vol.Optional(CONF_COOKIES, default=""): str,
                         }
                     ),
                     errors=errors,
@@ -240,7 +265,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             data_schema=vol.Schema(
                 {
                     vol.Required(CONF_ISSUE_TOKEN): str,
-                    vol.Required(CONF_COOKIES): str,
+                    vol.Optional(CONF_COOKIES, default=""): str,
                 }
             ),
             description_placeholders={

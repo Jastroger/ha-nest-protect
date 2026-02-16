@@ -1,9 +1,9 @@
 """Test translation files are valid and properly formatted."""
+
 import json
 from pathlib import Path
 
 import pytest
-
 
 TRANSLATION_FILES = [
     "custom_components/nest_protect/strings.json",
@@ -62,7 +62,11 @@ def test_wizard_login_javascript_braces_escaped(filepath):
 
 
 def test_wizard_description_renders_valid_javascript():
-    """Test that the wizard description, when rendered by ICU MessageFormat, produces valid JavaScript."""
+    """Test that the wizard description, when rendered by ICU MessageFormat, produces valid JavaScript.
+
+    This test is now optional - if JavaScript is present, it should be valid.
+    If not present, the test passes (as we recommend Network Header or Playwright wizard instead).
+    """
     # Use English as reference
     with open("custom_components/nest_protect/strings.json", encoding="utf-8") as f:
         data = json.load(f)
@@ -74,9 +78,12 @@ def test_wizard_description_renders_valid_javascript():
 
     # Extract JavaScript code
     import re
-    js_match = re.search(r'\(async\(\).*?\)\(\);', rendered, re.DOTALL)
 
-    assert js_match, "JavaScript code not found in wizard description"
+    js_match = re.search(r"\(async\(\).*?\)\(\);", rendered, re.DOTALL)
+
+    # JavaScript is now optional - if not present, test passes
+    if not js_match:
+        return
 
     js_code = js_match.group(0)
 

@@ -10,14 +10,14 @@
       },
       "wizard_login": {
         "title": "Wizard: Quick Setup",
-        "description": "## 🚀 Quick & Easy Credential Extraction\n\n**Recommended options (reliable):**\n\n### Option A: Network Header (Recommended)\n\n1. Open [home.nest.com](https://home.nest.com) in a **private/incognito window**\n2. **Sign in** with your Google account\n3. Open **Developer Tools** → **Network** tab → enable **Preserve log**\n4. Filter for `issueToken` and copy the full **Request URL**\n5. Filter for `oauth2/iframe`, open the latest request, and copy the full **Cookie** header value\n\n**Important:** Copy the **Cookie header** from the `oauth2/iframe` request, **not** `document.cookie`.\n\n### Option B: Playwright Wizard (Recommended)\n\nRun the helper script from the repo:\n\n`python3 scripts/nest_protect_cookie_wizard.py`\n\nIt guides you through the same flow and copies the **Issue Token URL** and **Cookie header** for you.\n\n### Not recommended: Console snippets\n\nConsole snippets are **unreliable** and often return incomplete cookies. Use the Network-Header method or the Playwright wizard instead.\n\n### Paste Below\n\nPaste the values in the fields below:\n- **Issue Token URL**: the full request URL from `issueToken`\n- **Cookies**: the full **Cookie** header value from `oauth2/iframe`",
+        "description": "## 🚀 Quick & Easy Credential Extraction\n\n**Recommended options (reliable):**\n\n### Option A: Network Header (Recommended)\n\n1. Open [home.nest.com](https://home.nest.com) in a **private/incognito window**\n2. **Sign in** with your Google account\n3. Open **Developer Tools** → **Network** tab → enable **Preserve log**\n4. Filter for `issueToken` and copy the full **Request URL**\n5. Filter for `oauth2/iframe`, open the latest request, and copy the full **Cookie** header value\n\n**Important:** Copy the **Cookie header** from the `oauth2/iframe` request, **not** `document.cookie`.\n\n### Option B: Playwright Wizard (Recommended)\n\nRun the helper script from the repo:\n\n`python3 scripts/nest_protect_cookie_wizard.py`\n\nIt guides you through the same flow and copies the **Issue Token URL** and **Cookie header** for you.\n\n### Not recommended: Console snippets\n\nConsole snippets are **unreliable** and often return incomplete cookies. Use the Network-Header method or the Playwright wizard instead.\n\n### Paste Below\n\n**💡 Tip:** You can paste both values into the first field separated by a line break, and they will be automatically split into the correct fields.\n\nPaste the values in the fields below:\n- **Issue Token URL**: the full request URL from `issueToken`\n- **Cookies**: the full **Cookie** header value from `oauth2/iframe`",
         "data": {
           "issue_token": "Issue Token URL",
-          "cookies": "Cookies"
+          "cookies": "Cookies (optional if pasted above)"
         },
         "data_description": {
-          "issue_token": "Paste from clipboard (starts with https://accounts.google.com/o/oauth2/iframerpc)",
-          "cookies": "Paste from clipboard"
+          "issue_token": "Paste from clipboard (starts with https://accounts.google.com/o/oauth2/iframerpc). You can paste both token and cookies here separated by a newline.",
+          "cookies": "Paste from clipboard (leave empty if already pasted above with token)"
         }
       },
       "user": {
@@ -42,6 +42,8 @@
     "error": {
       "cannot_connect": "[%key:common::config_flow::error::cannot_connect%]",
       "invalid_auth": "[%key:common::config_flow::error::invalid_auth%]",
+      "missing_issue_token": "Issue token URL is required. Please paste the full Request URL from the issueToken network call.",
+      "missing_cookies": "Cookies are required. Please paste the full Cookie header from the oauth2/iframe request.",
       "invalid_issue_token": "Invalid issue token URL. Paste the full Request URL from the issueToken call, including query parameters.",
       "invalid_cookies": "Invalid cookie header. Paste the entire Cookie header from the oauth2/iframe request with all key=value pairs.",
       "unknown": "[%key:common::config_flow::error::unknown%]"
