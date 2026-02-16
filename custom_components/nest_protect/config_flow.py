@@ -147,6 +147,9 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             errors[CONF_ISSUE_TOKEN] = "invalid_issue_token"
 
         # Then validate cookies
+        # Note: Cookies field is optional in the UI (users can paste both values
+        # in the issue_token field), but after auto-splitting, cookies are still
+        # required for authentication.
         if not cookies:
             errors[CONF_COOKIES] = "missing_cookies"
         elif not self._validate_cookies(cookies):
