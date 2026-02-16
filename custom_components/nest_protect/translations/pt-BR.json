@@ -9,7 +9,9 @@
       "invalid_auth": "Autenticação inválida",
       "invalid_issue_token": "URL do token de emissão inválida. Deve começar com https://accounts.google.com/ e conter a ação issueToken.",
       "invalid_cookies": "Formato de cookies inválido. Certifique-se de ter copiado o cabeçalho de cookies completo da solicitação oauth2/iframe.",
-      "unknown": "Erro inesperado"
+      "unknown": "Erro inesperado",
+      "missing_issue_token": "URL do token de emissão é obrigatória. Cole a URL de solicitação completa da chamada de rede issueToken.",
+      "missing_cookies": "Cookies são obrigatórios. Cole o cabeçalho Cookie completo da solicitação oauth2/iframe."
     },
     "step": {
       "user": {
@@ -27,14 +29,14 @@
       },
       "wizard_login": {
         "title": "Wizard: Configuração Rápida",
-        "description": "## 🚀 Extração Rápida e Fácil de Credenciais\n\n**Apenas 3 passos simples:**\n\n### Passo 1: Abrir Nest em navegador privado\n\n1. Abra [home.nest.com](https://home.nest.com) em uma **janela privada/anônima**\n2. **Faça login** com sua conta Google\n3. Ative **cookies de terceiros** se solicitado\n\n### Passo 2: Execute o script auxiliar\n\n1. Pressione **F12** no teclado (ou clique com botão direito → Inspecionar)\n2. Clique na aba **Console**\n3. Copie e cole este script de uma linha:\n\n**Copie isto:**\n\n    (async()=>'{'try'{'if(!location.hostname.includes('nest.com'))return alert('❌ Execute em home.nest.com');const t=performance.getEntriesByType('resource').find(e=>e.name.includes('issueToken'));if(!t)return alert('❌ Nenhum token encontrado. Atualize a página e tente novamente');const i=t.name,c=document.cookie;if(!i.startsWith('https://accounts.google.com/o/oauth2/iframerpc')||!i.includes('action=issueToken'))return alert('❌ Token inválido');if(!c||c.length<100)return alert('❌ Faça login primeiro');await navigator.clipboard.writeText(i+'\\n\\n'+c);alert('✅ Copiado! Cole abaixo no Home Assistant')'}'catch(e)'{'alert('❌ Erro: '+e.message)'}''}')();\n\n4. Pressione **Enter** - as credenciais serão copiadas automaticamente!\n\n### Passo 3: Colar abaixo\n\nAs credenciais estão agora na área de transferência. Basta colá-las nos campos abaixo:\n- Primeira linha vai em **URL do Token de Emissão**\n- Todo o resto vai em **Cookies**\n\n💡 **Dica**: No celular, use Chrome ou Safari no modo privado e ative o Site para desktop para acesso mais fácil ao console.",
+        "description": "## 🚀 Extração Rápida e Fácil de Credenciais\n\n**Opções recomendadas (confiáveis):**\n\n### Opção A: Cabeçalho de Rede (Recomendado)\n\n1. Abra [home.nest.com](https://home.nest.com) em uma **janela privada/anônima**\n2. **Faça login** com sua conta Google\n3. Abra as **Ferramentas do Desenvolvedor** → Aba **Rede** → ative **Preservar registro**\n4. Filtre por `issueToken` e copie a **URL de solicitação** completa\n5. Filtre por `oauth2/iframe`, abra a última solicitação e copie o valor completo do cabeçalho **Cookie**\n\n**Importante:** Copie o **cabeçalho Cookie** da solicitação `oauth2/iframe`, **não** `document.cookie`.\n\n### Opção B: Wizard Playwright (Recomendado)\n\nExecute o script auxiliar do repositório:\n\n`python3 scripts/nest_protect_cookie_wizard.py`\n\nEle o orienta pelo mesmo fluxo e copia a **URL do Token de Emissão** e o **cabeçalho Cookie** para você.\n\n### Não recomendado: Snippets de console\n\nSnippets de console são **pouco confiáveis** e frequentemente retornam cookies incompletos. Use o método de Cabeçalho de Rede ou o wizard Playwright.\n\n### Colar abaixo\n\n**💡 Dica:** Você pode colar ambos os valores no primeiro campo separados por uma quebra de linha, e eles serão automaticamente divididos nos campos corretos.\n\nCole os valores nos campos abaixo:\n- **URL do Token de Emissão**: a URL de solicitação completa de `issueToken`\n- **Cookies**: o valor completo do cabeçalho **Cookie** de `oauth2/iframe`",
         "data": {
           "issue_token": "URL do Token de Emissão",
-          "cookies": "Cookies"
+          "cookies": "Cookies (opcional se colado acima)"
         },
         "data_description": {
-          "issue_token": "Cole da área de transferência (começa com https://accounts.google.com/o/oauth2/iframerpc)",
-          "cookies": "Cole da área de transferência"
+          "issue_token": "Cole da área de transferência (começa com https://accounts.google.com/o/oauth2/iframerpc). Você pode colar tanto o token quanto os cookies aqui separados por uma quebra de linha.",
+          "cookies": "Cole da área de transferência (deixe em branco se já colado acima com o token)"
         }
       },
       "account_link": {

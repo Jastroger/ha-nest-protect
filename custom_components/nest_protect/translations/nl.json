@@ -9,7 +9,9 @@
       "invalid_auth": "Ongeldige authenticatie",
       "invalid_issue_token": "Ongeldige issue token URL. Moet beginnen met https://accounts.google.com/ en de issueToken-actie bevatten.",
       "invalid_cookies": "Ongeldig cookie-formaat. Zorg ervoor dat u de volledige cookie-header hebt gekopieerd van het oauth2/iframe-verzoek.",
-      "unknown": "Onverwachte fout"
+      "unknown": "Onverwachte fout",
+      "missing_issue_token": "Issue token URL is vereist. Plak de volledige Request URL van de issueToken netwerkoproep.",
+      "missing_cookies": "Cookies zijn vereist. Plak de volledige Cookie-header van het oauth2/iframe-verzoek."
     },
     "step": {
       "user": {
@@ -27,14 +29,14 @@
       },
       "wizard_login": {
         "title": "Wizard: Snelle Setup",
-        "description": "## 🚀 Snelle & Eenvoudige Credential-Extractie\n\n**Slechts 3 eenvoudige stappen:**\n\n### Stap 1: Open Nest in privé browser\n\n1. Open [home.nest.com](https://home.nest.com) in een **privé/incognito-venster**\n2. **Meld u aan** met uw Google-account\n3. Schakel **third-party cookies** in indien gevraagd\n\n### Stap 2: Voer het hulp-script uit\n\n1. Druk op **F12** op uw toetsenbord (of rechtsklik → Inspecteren)\n2. Klik op het **Console**-tabblad\n3. Kopieer en plak dit één-regel script:\n\n**Kopieer dit:**\n\n    (async()=>'{'try'{'if(!location.hostname.includes('nest.com'))return alert('❌ Uitvoeren op home.nest.com');const t=performance.getEntriesByType('resource').find(e=>e.name.includes('issueToken'));if(!t)return alert('❌ Geen token gevonden. Vernieuw pagina en probeer opnieuw');const i=t.name,c=document.cookie;if(!i.startsWith('https://accounts.google.com/o/oauth2/iframerpc')||!i.includes('action=issueToken'))return alert('❌ Ongeldige token');if(!c||c.length<100)return alert('❌ Meld u eerst aan');await navigator.clipboard.writeText(i+'\\n\\n'+c);alert('✅ Gekopieerd! Plak hieronder in Home Assistant')'}'catch(e)'{'alert('❌ Fout: '+e.message)'}''}')();\n\n4. Druk op **Enter** - credentials worden automatisch gekopieerd!\n\n### Stap 3: Plak hieronder\n\nDe credentials zijn nu in uw klembord. Plak ze gewoon in de velden hieronder:\n- Eerste regel gaat in **Issue Token URL**\n- Alles anders gaat in **Cookies**\n\n💡 **Tip**: Op mobiel, gebruik Chrome of Safari in privémodus en schakel Desktopsite in voor eenvoudigere console-toegang.",
+        "description": "## 🚀 Snelle & Eenvoudige Credential-Extractie\n\n**Aanbevolen opties (betrouwbaar):**\n\n### Optie A: Netwerk Header (Aanbevolen)\n\n1. Open [home.nest.com](https://home.nest.com) in een **privé/incognito-venster**\n2. **Meld u aan** met uw Google-account\n3. Open **Ontwikkelaarstools** → **Netwerk**-tabblad → activeer **Bewaar logboek**\n4. Filter op `issueToken` en kopieer de volledige **Request URL**\n5. Filter op `oauth2/iframe`, open het laatste verzoek en kopieer de volledige waarde van de **Cookie**-header\n\n**Belangrijk:** Kopieer de **Cookie-header** van het `oauth2/iframe`-verzoek, **niet** `document.cookie`.\n\n### Optie B: Playwright Wizard (Aanbevolen)\n\nVoer het hulp-script uit vanuit de repo:\n\n`python3 scripts/nest_protect_cookie_wizard.py`\n\nHet leidt u door dezelfde flow en kopieert de **Issue Token URL** en **Cookie-header** voor u.\n\n### Niet aanbevolen: Console snippets\n\nConsole snippets zijn **onbetrouwbaar** en retourneren vaak onvolledige cookies. Gebruik in plaats daarvan de Netwerk-Header-methode of de Playwright-wizard.\n\n### Plak hieronder\n\n**💡 Tip:** U kunt beide waarden in het eerste veld plakken, gescheiden door een regelafbreking, en ze worden automatisch opgesplitst in de juiste velden.\n\nPlak de waarden in de onderstaande velden:\n- **Issue Token URL**: de volledige request URL van `issueToken`\n- **Cookies**: de volledige waarde van de **Cookie**-header van `oauth2/iframe`",
         "data": {
           "issue_token": "Issue Token URL",
-          "cookies": "Cookies"
+          "cookies": "Cookies (optioneel als hierboven geplakt)"
         },
         "data_description": {
-          "issue_token": "Plakken vanaf klembord (begint met https://accounts.google.com/o/oauth2/iframerpc)",
-          "cookies": "Plakken vanaf klembord"
+          "issue_token": "Plakken vanaf klembord (begint met https://accounts.google.com/o/oauth2/iframerpc). U kunt zowel token als cookies hier plakken, gescheiden door een regelafbreking.",
+          "cookies": "Plakken vanaf klembord (laat leeg als al hierboven met token geplakt)"
         }
       },
       "account_link": {

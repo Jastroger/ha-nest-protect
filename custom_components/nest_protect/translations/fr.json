@@ -9,7 +9,9 @@
       "invalid_auth": "Authentification invalide",
       "invalid_issue_token": "URL du jeton d'émission invalide. Doit commencer par https://accounts.google.com/ et contenir l'action issueToken.",
       "invalid_cookies": "Format des cookies invalide. Assurez-vous d'avoir copié l'en-tête complet des cookies de la requête oauth2/iframe.",
-      "unknown": "Erreur inattendue"
+      "unknown": "Erreur inattendue",
+      "missing_issue_token": "L'URL du jeton d'émission est requise. Veuillez coller l'URL de requête complète de l'appel réseau issueToken.",
+      "missing_cookies": "Les cookies sont requis. Veuillez coller l'en-tête Cookie complet de la requête oauth2/iframe."
     },
     "step": {
       "user": {
@@ -27,14 +29,14 @@
       },
       "wizard_login": {
         "title": "Wizard: Configuration rapide",
-        "description": "## 🚀 Extraction rapide et facile des identifiants\n\n**Seulement 3 étapes simples:**\n\n### Étape 1: Ouvrir Nest dans un navigateur privé\n\n1. Ouvrez [home.nest.com](https://home.nest.com) dans une **fenêtre privée/incognito**\n2. **Connectez-vous** avec votre compte Google\n3. Activez les **cookies tiers** si demandé\n\n### Étape 2: Exécuter le script d'aide\n\n1. Appuyez sur **F12** sur votre clavier (ou clic droit → Inspecter)\n2. Cliquez sur l'onglet **Console**\n3. Copiez et collez ce script d'une ligne:\n\n**Copiez ceci:**\n\n    (async()=>'{'try'{'if(!location.hostname.includes('nest.com'))return alert('❌ Exécuter sur home.nest.com');const t=performance.getEntriesByType('resource').find(e=>e.name.includes('issueToken'));if(!t)return alert('❌ Aucun jeton trouvé. Actualisez la page et réessayez');const i=t.name,c=document.cookie;if(!i.startsWith('https://accounts.google.com/o/oauth2/iframerpc')||!i.includes('action=issueToken'))return alert('❌ Jeton invalide');if(!c||c.length<100)return alert('❌ Veuillez vous connecter d\\'abord');await navigator.clipboard.writeText(i+'\\n\\n'+c);alert('✅ Copié! Collez ci-dessous dans Home Assistant')'}'catch(e)'{'alert('❌ Erreur: '+e.message)'}''}')();\n\n4. Appuyez sur **Entrée** - les identifiants seront automatiquement copiés!\n\n### Étape 3: Coller ci-dessous\n\nLes identifiants sont maintenant dans votre presse-papiers. Collez-les simplement dans les champs ci-dessous:\n- La première ligne va dans **URL du jeton d'émission**\n- Tout le reste va dans **Cookies**\n\n💡 **Astuce**: Sur mobile, utilisez Chrome ou Safari en mode privé et activez le Site de bureau pour un accès console plus facile.",
+        "description": "## 🚀 Extraction rapide et facile des identifiants\n\n**Options recommandées (fiables):**\n\n### Option A: En-tête réseau (Recommandé)\n\n1. Ouvrez [home.nest.com](https://home.nest.com) dans une **fenêtre privée/incognito**\n2. **Connectez-vous** avec votre compte Google\n3. Ouvrez les **Outils de développement** → Onglet **Réseau** → activez **Conserver le journal**\n4. Filtrez par `issueToken` et copiez l'**URL de requête** complète\n5. Filtrez par `oauth2/iframe`, ouvrez la dernière requête et copiez la valeur complète de l'en-tête **Cookie**\n\n**Important:** Copiez l'**en-tête Cookie** de la requête `oauth2/iframe`, **pas** `document.cookie`.\n\n### Option B: Wizard Playwright (Recommandé)\n\nExécutez le script d'aide depuis le dépôt:\n\n`python3 scripts/nest_protect_cookie_wizard.py`\n\nIl vous guide dans le même flux et copie l'**URL du jeton d'émission** et l'**en-tête Cookie** pour vous.\n\n### Non recommandé: Extraits de console\n\nLes extraits de console sont **peu fiables** et retournent souvent des cookies incomplets. Utilisez plutôt la méthode d'en-tête réseau ou le wizard Playwright.\n\n### Coller ci-dessous\n\n**💡 Astuce:** Vous pouvez coller les deux valeurs dans le premier champ séparées par un saut de ligne, et elles seront automatiquement réparties dans les champs corrects.\n\nCollez les valeurs dans les champs ci-dessous:\n- **URL du jeton d'émission**: l'URL de requête complète de `issueToken`\n- **Cookies**: la valeur complète de l'en-tête **Cookie** de `oauth2/iframe`",
         "data": {
           "issue_token": "URL du jeton d'émission",
-          "cookies": "Cookies"
+          "cookies": "Cookies (optionnel si collé ci-dessus)"
         },
         "data_description": {
-          "issue_token": "Collez depuis le presse-papiers (commence par https://accounts.google.com/o/oauth2/iframerpc)",
-          "cookies": "Collez depuis le presse-papiers"
+          "issue_token": "Collez depuis le presse-papiers (commence par https://accounts.google.com/o/oauth2/iframerpc). Vous pouvez coller le jeton et les cookies ici séparés par un saut de ligne.",
+          "cookies": "Collez depuis le presse-papiers (laissez vide si déjà collé ci-dessus avec le jeton)"
         }
       },
       "account_link": {
