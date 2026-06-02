@@ -13,6 +13,8 @@ DOMAIN: Final = "nest_protect"
 ATTRIBUTION: Final = "Data provided by Google"
 
 CONF_ACCOUNT_TYPE: Final = "account_type"
+CONF_AUTH_BRIDGE_SESSION: Final = "auth_bridge_session"
+CONF_AUTH_BRIDGE_SECRET: Final = "auth_bridge_secret"
 CONF_REFRESH_TOKEN: Final = "refresh_token"
 CONF_WIZARD_OUTPUT: Final = "wizard_output"
 CONF_ISSUE_TOKEN: Final = "issue_token"

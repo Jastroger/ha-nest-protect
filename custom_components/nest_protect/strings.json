@@ -1,16 +1,28 @@
 {
   "config": {
     "step": {
+      "auth_bridge_start": {
+        "title": "Set up Nest Protect",
+        "description": "Nest Protect is not available through Google's official SDM API. This setup uses a local Auth Bridge so you can sign in normally without browser developer tools.\n\nContinue to start a one-time authentication session.",
+        "data": {}
+      },
+      "auth_bridge_wait": {
+        "title": "Waiting for Nest Protect sign-in",
+        "description": "Authentication session `{auth_bridge_session}` is waiting for the Auth Bridge callback.\n\nWhen the Auth Bridge completes Google/Nest sign-in, Home Assistant will validate the result and finish setup.\n\nUse fallback only for troubleshooting.",
+        "data": {
+          "fallback": "Use manual fallback"
+        }
+      },
       "wizard_login": {
         "title": "Set up Nest Protect",
-        "description": "Nest Protect is not exposed through the official Google Nest SDM API, even when your alarms appear in the Google Home app. This integration therefore uses the Nest web authentication flow.\n\nRecommended: run `python scripts/nest_protect_cookie_wizard.py` on your computer. The wizard opens a real browser, lets you sign in normally, captures the required request data locally, and prints one block you can paste here.\n\nPaste the full wizard output block into the first field. The separate Issue Token URL and Cookie header fields are only for legacy or emergency fallback use.",
+        "description": "Nest Protect is not exposed through the official Google Nest SDM API, even when your alarms appear in the Google Home app. This integration therefore uses the Nest web authentication flow.\n\nPaste an authentication helper output block into the first field. The helper must capture the real issueToken request URL and Cookie request header locally; Home Assistant itself cannot read Google request headers from your browser.\n\nThe separate Issue Token URL and Cookie header fields are for legacy or emergency fallback use only.",
         "data": {
           "wizard_output": "Wizard output block",
           "issue_token": "Issue Token URL",
           "cookies": "Cookie header"
         },
         "data_description": {
-          "wizard_output": "Paste the complete block printed by scripts/nest_protect_cookie_wizard.py.",
+          "wizard_output": "Paste the complete block printed by a Nest Protect authentication helper.",
           "issue_token": "Fallback only: full URL beginning with https://accounts.google.com/o/oauth2/iframerpc.",
           "cookies": "Fallback only: full Cookie request header captured by the wizard or manual troubleshooting."
         }

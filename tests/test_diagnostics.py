@@ -10,5 +10,7 @@ def test_diagnostics_redacts_auth_secrets():
     assert "issue_token" in TO_REDACT
     assert "refresh_token" in TO_REDACT
     assert "wizard_output" in TO_REDACT
+    assert "auth_bridge_secret" in TO_REDACT
+    assert "auth_bridge_session" in TO_REDACT
     assert "id_token" in TO_REDACT
     assert "jwt" in TO_REDACT

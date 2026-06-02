@@ -11,10 +11,16 @@ from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers.aiohttp_client import async_create_clientsession
 import voluptuous as vol
 
+from .auth_bridge import (
+    AuthBridgeSession,
+    create_auth_bridge_session,
+)
 from .const import (
     CONF_ACCESS_TOKEN,
     CONF_ACCESS_TOKEN_EXPIRES_AT,
     CONF_ACCOUNT_TYPE,
+    CONF_AUTH_BRIDGE_SECRET,
+    CONF_AUTH_BRIDGE_SESSION,
     CONF_COOKIES,
     CONF_ISSUE_TOKEN,
     CONF_REFRESH_TOKEN,
@@ -44,6 +50,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     _config_entry: ConfigEntry | None = None
     _default_account_type: Environment = Environment.PRODUCTION
+    _auth_bridge_session: AuthBridgeSession | None = None
 
     @staticmethod
     def _normalize_issue_token(issue_token: str) -> str:
@@ -286,7 +293,51 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         """Handle the initial step."""
-        return await self.async_step_wizard_login(user_input)
+        return await self.async_step_auth_bridge_start(user_input)
+
+    async def async_step_auth_bridge_start(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Start the auth bridge flow."""
+        if user_input is not None:
+            self._auth_bridge_session = create_auth_bridge_session(self.hass)
+            return await self.async_step_auth_bridge_wait()
+
+        return self.async_show_form(
+            step_id="auth_bridge_start",
+            data_schema=vol.Schema({}),
+            description_placeholders={
+                "session_id": "",
+            },
+        )
+
+    async def async_step_auth_bridge_wait(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Wait for the auth bridge callback."""
+        if not self._auth_bridge_session:
+            self._auth_bridge_session = create_auth_bridge_session(self.hass)
+
+        session = self._auth_bridge_session
+
+        if user_input is not None and user_input.get("fallback"):
+            return await self.async_step_wizard_login()
+
+        if session.result:
+            user_input = {
+                CONF_ISSUE_TOKEN: session.result.get(CONF_ISSUE_TOKEN, ""),
+                CONF_COOKIES: session.result.get(CONF_COOKIES, ""),
+            }
+            return await self.async_step_account_link(user_input)
+
+        return self.async_show_form(
+            step_id="auth_bridge_wait",
+            data_schema=vol.Schema({vol.Optional("fallback", default=False): bool}),
+            description_placeholders={
+                CONF_AUTH_BRIDGE_SESSION: session.session_id,
+                CONF_AUTH_BRIDGE_SECRET: session.secret,
+            },
+        )
 
     async def async_step_wizard_login(
         self, user_input: dict[str, Any] | None = None
@@ -409,4 +460,4 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             CONF_ACCOUNT_TYPE, Environment.PRODUCTION
         )
 
-        return await self.async_step_wizard_login(user_input)
+        return await self.async_step_auth_bridge_start(user_input)

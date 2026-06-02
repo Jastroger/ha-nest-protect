@@ -34,35 +34,54 @@ Copy the `custom_components/nest_protect` to your custom_components folder and r
 
 [![Open your Home Assistant instance and start setting up a new integration.](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=nest_protect)
 
-## Retrieving `issue_token` and `cookies`
+## Authentication Setup
 
-(adapted from [homebridge-nest documentation](https://github.com/chrisjshull/homebridge-nest))
+The product goal is zero DevTools setup: normal users should not open browser developer tools, export HAR files, inspect Network requests, search for Cookie headers, or run JavaScript snippets.
 
-### Option A: Playwright cookie wizard (recommended)
+There is an important implementation constraint: a Home Assistant custom integration cannot read Google/Nest request headers from the user's browser. Browser security correctly prevents that. The config flow can accept an authentication helper output block, but the helper that captures Google browser traffic must run as an accessible companion app, browser extension, or Home Assistant add-on/Ingress app.
 
-The helper script in `scripts/nest_protect_cookie_wizard.py` launches a local browser with Playwright, guides you through Google login, and extracts the required values from network requests. The script runs entirely on your machine and does not send credentials to external services.
+The config flow accepts a block shaped like this, using fake masked values:
 
-**Prerequisites**
-
-- Python 3.10+
-- Playwright installed: `pip install playwright`
-- Playwright browser binaries installed: `playwright install chromium`
-
-**Run**
-
-```
-./scripts/nest_protect_cookie_wizard.py
+```text
+NEST_PROTECT_AUTH_WIZARD_OUTPUT_V1
+issue_token=https://accounts.google.com/o/oauth2/iframerpc?action=issueToken&...
+cookies=SID=***; HSID=***; SSID=***; APISID=***; SAPISID=***
+END_NEST_PROTECT_AUTH_WIZARD_OUTPUT
 ```
 
-**Limitations**
+The development script at `scripts/nest_protect_cookie_wizard.py` demonstrates the capture behavior, but it is not a finished normal-user setup experience because HACS users cannot access or run repository scripts from the Home Assistant config flow.
 
-- Google 2FA prompts must be completed in the browser window.
-- You may see Google consent screens depending on your account.
-- Google anti-automation protections can occasionally block or slow the flow; retry in a fresh session if needed.
+A true zero-DevTools user experience needs one of these implementation paths:
 
-### Option B: Manual browser steps
+- Home Assistant add-on with browser/Ingress UI that runs the capture helper and returns the block.
+- Small signed desktop companion app that opens a real browser and prints or copies the block.
+- Browser extension with explicit permissions to capture the required request headers.
 
-The values of "issue_token" and "cookies" are specific to your Google Account. To get them, follow these steps (only needs to be done once, as long as you stay logged into your Google Account).
+The pure Home Assistant config flow alone cannot capture the required Google request headers.
+
+### Auth Bridge Callback Contract
+
+The integration now has a callback endpoint for an add-on or companion app:
+
+```text
+POST /api/nest_protect/auth_bridge/{session_id}
+```
+
+Payload:
+
+```json
+{
+  "secret": "one-time-session-secret",
+  "issue_token": "https://accounts.google.com/o/oauth2/iframerpc?action=issueToken&...",
+  "cookies": "SID=***; HSID=***; SSID=***; APISID=***; SAPISID=***"
+}
+```
+
+The `session_id` and one-time secret are created by the Home Assistant config flow. The callback stores the result only when the secret matches. The config flow then validates the credentials and finishes setup.
+
+### Manual Fallback / Troubleshooting Only
+
+Use this only if no authentication helper is available. These values are specific to your Google account.
 
 1. Open a Chrome/Edge browser tab in Incognito Mode.
 1. Allow third-party cookies in your browser settings to prevent the Nest website from entering a redirect loop. Follow these steps:
@@ -70,7 +89,7 @@ The values of "issue_token" and "cookies" are specific to your Google Account. T
    - **In Chrome**: Go to Settings, select Privacy and Security -> Third-party cookies. Enable "Allow third-party cookies."
    - **In Edge**: Go to Settings, select Cookies and site permissions -> Manage and delete cookies and site data. Disable "Block third-party cookies."
 
-1. Open Developer Tools (View/Developer/Developer Tools).
+1. Open Developer Tools.
 1. Click on **Network** tab. Make sure 'Preserve Log' is checked.
 1. In the **Filter** box, enter `issueToken`
 1. Go to home.nest.com, and click **Sign in with Google**. Log into your account.

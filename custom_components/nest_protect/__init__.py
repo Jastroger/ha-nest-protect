@@ -8,7 +8,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from aiohttp import ClientConnectorError, ClientError, ServerDisconnectedError
-from homeassistant.components.http import StaticPathConfig
+from aiohttp import web
+from homeassistant.components.http import HomeAssistantView, StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
@@ -16,10 +17,11 @@ from homeassistant.helpers.aiohttp_client import async_create_clientsession
 from homeassistant.helpers.device_registry import DeviceEntry
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 
+from .auth_bridge import complete_auth_bridge_session
 from .const import (
-    CONF_ACCOUNT_TYPE,
     CONF_ACCESS_TOKEN,
     CONF_ACCESS_TOKEN_EXPIRES_AT,
+    CONF_ACCOUNT_TYPE,
     CONF_COOKIES,
     CONF_ISSUE_TOKEN,
     CONF_REFRESH_TOKEN,
@@ -56,8 +58,46 @@ class HomeAssistantNestProtectData:
     subscription_task: asyncio.Task | None = None
 
 
+class NestProtectAuthBridgeView(HomeAssistantView):
+    """Receive auth bridge callback payloads."""
+
+    url = "/api/nest_protect/auth_bridge/{session_id}"
+    name = "api:nest_protect:auth_bridge"
+    requires_auth = False
+
+    async def post(self, request: web.Request, session_id: str) -> web.Response:
+        """Handle auth bridge credential callback."""
+        hass = request.app["hass"]
+
+        try:
+            payload = await request.json()
+        except ValueError:
+            return web.json_response({"error": "invalid_json"}, status=400)
+
+        secret = payload.get("secret")
+        issue_token = payload.get(CONF_ISSUE_TOKEN)
+        cookies = payload.get(CONF_COOKIES)
+        if not secret or not issue_token or not cookies:
+            return web.json_response({"error": "missing_fields"}, status=400)
+
+        if not complete_auth_bridge_session(
+            hass,
+            session_id,
+            secret,
+            {
+                CONF_ISSUE_TOKEN: issue_token,
+                CONF_COOKIES: cookies,
+            },
+        ):
+            return web.json_response({"error": "invalid_session"}, status=403)
+
+        return web.json_response({"ok": True})
+
+
 async def async_setup(hass: HomeAssistant, config: dict):
     """Set up the Nest Protect component."""
+    hass.http.register_view(NestProtectAuthBridgeView())
+
     # Register www folder for credential helper
     www_path = Path(__file__).parent / "www"
     if www_path.exists():

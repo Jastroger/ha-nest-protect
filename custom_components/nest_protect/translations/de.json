@@ -1,16 +1,28 @@
 {
   "config": {
     "step": {
+      "auth_bridge_start": {
+        "title": "Nest Protect einrichten",
+        "description": "Nest Protect ist nicht über Googles offizielle SDM API verfügbar. Diese Einrichtung nutzt eine lokale Auth Bridge, damit du dich normal anmelden kannst, ohne Browser-Entwicklertools zu verwenden.\n\nFahre fort, um eine einmalige Authentifizierungssitzung zu starten.",
+        "data": {}
+      },
+      "auth_bridge_wait": {
+        "title": "Warte auf Nest Protect Anmeldung",
+        "description": "Authentifizierungssitzung `{auth_bridge_session}` wartet auf den Callback der Auth Bridge.\n\nWenn die Auth Bridge die Google/Nest-Anmeldung abgeschlossen hat, validiert Home Assistant das Ergebnis und beendet die Einrichtung.\n\nNutze den Fallback nur zur Fehlersuche.",
+        "data": {
+          "fallback": "Manuellen Fallback verwenden"
+        }
+      },
       "wizard_login": {
         "title": "Nest Protect einrichten",
-        "description": "Nest Protect wird von der offiziellen Google Nest SDM API nicht bereitgestellt, auch wenn die Melder in der Google Home App sichtbar sind. Diese Integration nutzt deshalb die Nest-Webauthentifizierung.\n\nEmpfohlen: Führe auf deinem Computer `python scripts/nest_protect_cookie_wizard.py` aus. Der Wizard öffnet einen echten Browser, du meldest dich ganz normal an, und der Wizard erfasst die nötigen Request-Daten lokal. Danach gibt er einen Block aus, den du hier einfügst.\n\nFüge den vollständigen Wizard-Block in das erste Feld ein. Die separaten Felder für Issue Token URL und Cookie-Header sind nur für alte Setups oder Notfall-Fallbacks gedacht.",
+        "description": "Nest Protect wird von der offiziellen Google Nest SDM API nicht bereitgestellt, auch wenn die Melder in der Google Home App sichtbar sind. Diese Integration nutzt deshalb die Nest-Webauthentifizierung.\n\nFüge einen Ausgabeblock eines Authentifizierungshelfers in das erste Feld ein. Der Helfer muss die echte issueToken Request URL und den Cookie-Request-Header lokal erfassen; Home Assistant selbst kann keine Google-Request-Header aus deinem Browser lesen.\n\nDie separaten Felder für Issue Token URL und Cookie-Header sind nur für alte Setups oder Notfall-Fallbacks gedacht.",
         "data": {
           "wizard_output": "Wizard-Ausgabeblock",
           "issue_token": "Issue Token URL",
           "cookies": "Cookie-Header"
         },
         "data_description": {
-          "wizard_output": "Füge den vollständigen Block ein, den scripts/nest_protect_cookie_wizard.py ausgibt.",
+          "wizard_output": "Füge den vollständigen Block eines Nest-Protect-Authentifizierungshelfers ein.",
           "issue_token": "Nur Fallback: vollständige URL beginnend mit https://accounts.google.com/o/oauth2/iframerpc.",
           "cookies": "Nur Fallback: vollständiger Cookie-Request-Header aus Wizard oder manueller Fehlersuche."
         }
