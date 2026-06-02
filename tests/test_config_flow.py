@@ -1,7 +1,11 @@
 """Tests for the Nest Protect config flow helpers."""
 
 from custom_components.nest_protect.config_flow import ConfigFlow
-from custom_components.nest_protect.const import CONF_COOKIES, CONF_ISSUE_TOKEN
+from custom_components.nest_protect.const import (
+    CONF_COOKIES,
+    CONF_ISSUE_TOKEN,
+    CONF_WIZARD_OUTPUT,
+)
 
 
 VALID_ISSUE_TOKEN = (
@@ -40,6 +44,87 @@ def test_split_issue_token_and_cookies_from_combined_paste():
 
     assert issue_token == VALID_ISSUE_TOKEN
     assert cookies == VALID_COOKIES
+
+
+def test_parse_wizard_output_block():
+    """Test parsing the auth wizard's copy-paste block."""
+    issue_token, cookies = ConfigFlow._parse_wizard_output(
+        "\n".join(
+            [
+                "NEST_PROTECT_AUTH_WIZARD_OUTPUT_V1",
+                f"issue_token={VALID_ISSUE_TOKEN}",
+                f"cookies={VALID_COOKIES}",
+                "END_NEST_PROTECT_AUTH_WIZARD_OUTPUT",
+            ]
+        )
+    )
+
+    assert issue_token == VALID_ISSUE_TOKEN
+    assert cookies == VALID_COOKIES
+
+
+def test_parse_wizard_output_legacy_label_block():
+    """Test parsing older label-style wizard output."""
+    issue_token, cookies = ConfigFlow._parse_wizard_output(
+        f"Issue Token URL:\n{VALID_ISSUE_TOKEN}\nCookie header:\n{VALID_COOKIES}"
+    )
+
+    assert issue_token == VALID_ISSUE_TOKEN
+    assert cookies == VALID_COOKIES
+
+
+def test_validate_credentials_accepts_full_wizard_block():
+    """Test config flow helper accepts a full wizard block."""
+    flow = ConfigFlow()
+    user_input = {
+        CONF_WIZARD_OUTPUT: "\n".join(
+            [
+                "NEST_PROTECT_AUTH_WIZARD_OUTPUT_V1",
+                f"issue_token={VALID_ISSUE_TOKEN}",
+                f"cookies={VALID_COOKIES}",
+                "END_NEST_PROTECT_AUTH_WIZARD_OUTPUT",
+            ]
+        ),
+        CONF_ISSUE_TOKEN: "",
+        CONF_COOKIES: "",
+    }
+
+    assert flow._normalize_and_validate_credentials(user_input) == {}
+    assert user_input[CONF_ISSUE_TOKEN] == VALID_ISSUE_TOKEN
+    assert user_input[CONF_COOKIES] == VALID_COOKIES
+    assert CONF_WIZARD_OUTPUT not in user_input
+
+
+def test_validate_credentials_reports_incomplete_wizard_block():
+    """Test incomplete wizard block reports an actionable field error."""
+    flow = ConfigFlow()
+    errors = flow._normalize_and_validate_credentials(
+        {
+            CONF_WIZARD_OUTPUT: (
+                "NEST_PROTECT_AUTH_WIZARD_OUTPUT_V1\n"
+                f"cookies={VALID_COOKIES}\n"
+                "END_NEST_PROTECT_AUTH_WIZARD_OUTPUT"
+            ),
+            CONF_ISSUE_TOKEN: "",
+            CONF_COOKIES: "",
+        }
+    )
+
+    assert errors == {CONF_WIZARD_OUTPUT: "missing_issue_token"}
+
+
+def test_reauth_accepts_wizard_block_shape():
+    """Test reauth can reuse the same wizard block normalization path."""
+    flow = ConfigFlow()
+    user_input = {
+        CONF_WIZARD_OUTPUT: f"{VALID_ISSUE_TOKEN}\n{VALID_COOKIES}",
+        CONF_ISSUE_TOKEN: "",
+        CONF_COOKIES: "",
+    }
+
+    assert flow._normalize_and_validate_credentials(user_input) == {}
+    assert user_input[CONF_ISSUE_TOKEN] == VALID_ISSUE_TOKEN
+    assert user_input[CONF_COOKIES] == VALID_COOKIES
 
 
 def test_validate_credentials_requires_issue_token():

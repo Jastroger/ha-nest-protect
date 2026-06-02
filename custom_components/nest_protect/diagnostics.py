@@ -17,6 +17,7 @@ from .const import (
     CONF_COOKIES,
     CONF_ISSUE_TOKEN,
     CONF_REFRESH_TOKEN,
+    CONF_WIZARD_OUTPUT,
     DOMAIN,
 )
 from .pynest.const import FULL_NEST_REQUEST
@@ -28,6 +29,7 @@ TO_REDACT = [
     CONF_COOKIES,
     CONF_ISSUE_TOKEN,
     CONF_REFRESH_TOKEN,
+    CONF_WIZARD_OUTPUT,
     "address_lines",
     "aux_primary_fabric_id",
     "city",
@@ -137,3 +139,4 @@ async def async_get_device_diagnostics(
     "issue_token",
     "jwt",
     "refresh_token",
+    "wizard_output",

@@ -36,14 +36,16 @@ It uses the unofficial Nest web API because Nest Protect is not exposed through 
 2. Restart Home Assistant.
 3. Add the integration from Settings > Devices & services.
 
-## Setup
+## Zero DevTools Setup
 
-The recommended setup path is the Playwright credential wizard. It opens a local browser, lets you sign in to `home.nest.com`, and captures the two values Home Assistant needs:
+The normal setup path is the Playwright auth wizard. Normal users should not open browser developer tools, export HAR files, inspect Network requests, search for Cookie headers, or run JavaScript snippets.
+
+The wizard opens a real browser, lets you sign in to Google normally, listens to local browser network traffic, and captures the two values Home Assistant needs:
 
 - Issue Token URL
 - Cookie header from the `oauth2/iframe` Network request
 
-The wizard does not use `document.cookie`, because that usually misses required Google authentication cookies.
+The wizard does not use `document.cookie`, because that usually misses required Google authentication cookies. It does not read your Google password; login happens inside the browser window.
 
 ### Run The Wizard
 
@@ -55,6 +57,12 @@ python -m playwright install chromium
 python scripts/nest_protect_cookie_wizard.py
 ```
 
+For an extra end-to-end check before printing the final block:
+
+```bash
+python scripts/nest_protect_cookie_wizard.py --validate
+```
+
 Optional browser choices:
 
 ```bash
@@ -63,13 +71,22 @@ python scripts/nest_protect_cookie_wizard.py --browser chrome
 python scripts/nest_protect_cookie_wizard.py --browser edge
 ```
 
-Complete login in the browser window. When both values are captured, paste the combined block into the first field of the Home Assistant setup form, or paste the Issue Token URL and Cookie header into the separate fields.
+Complete login in the browser window. When both values are captured, paste the combined block into the first field of the Home Assistant setup form.
 
 Do not log out of `home.nest.com` after capturing the values.
 
-### Manual Fallback
+Example block shape with fake values:
 
-Use this only if the wizard cannot run.
+```text
+NEST_PROTECT_AUTH_WIZARD_OUTPUT_V1
+issue_token=https://accounts.google.com/o/oauth2/iframerpc?action=issueToken&...
+cookies=SID=***; HSID=***; SSID=***; APISID=***; SAPISID=***
+END_NEST_PROTECT_AUTH_WIZARD_OUTPUT
+```
+
+### Manual Fallback / Troubleshooting Only
+
+Use this only if the wizard cannot run or troubleshooting needs to prove what the browser is sending. This is not the normal setup path.
 
 1. Open a private or incognito browser window.
 2. Open Developer Tools and go to the Network tab.
@@ -97,7 +114,7 @@ If Home Assistant reports that Nest Protect authentication expired:
 
 ### Invalid Issue Token URL
 
-Paste the complete `issueToken` request URL, including query parameters. It should begin with:
+Run the wizard again and paste the complete wizard block. If using the emergency fallback, paste the complete `issueToken` request URL, including query parameters. It should begin with:
 
 ```text
 https://accounts.google.com/o/oauth2/iframerpc
@@ -105,7 +122,11 @@ https://accounts.google.com/o/oauth2/iframerpc
 
 ### Incomplete Cookie Header
 
-Copy the full Cookie request header from the `oauth2/iframe` Network request. It should contain several Google cookie names such as `SID`, `HSID`, `SSID`, `APISID`, or `SAPISID`.
+Run the wizard again and wait until the Nest web app fully loads. If using the emergency fallback, copy the full Cookie request header from the `oauth2/iframe` Network request. It should contain several Google cookie names such as `SID`, `HSID`, `SSID`, `APISID`, or `SAPISID`.
+
+### Wizard Sees oauth2 iframe But No Issue Token
+
+Keep the browser open, reload `https://home.nest.com`, and wait until the Nest web app fully loads. If it still does not capture an Issue Token URL, retry in a fresh browser context and confirm that your Google account migration is complete.
 
 ### Google/Nest Authentication Rejected
 
@@ -125,7 +146,7 @@ Treat the Issue Token URL, Cookie header, access tokens, refresh tokens, and JWT
 
 This repository must not contain real tokens or cookies. Diagnostics redact known secret fields. If you share logs or diagnostics, review them first.
 
-The wizard prints captured credentials because you need to paste them into Home Assistant. It masks values in status output and does not write credential files.
+The wizard prints captured credentials because you need to paste them into Home Assistant. It masks values in status and debug output by default and does not write credential files. `--show-secrets` is intentionally unsafe and should only be used for local troubleshooting.
 
 ## Development
 

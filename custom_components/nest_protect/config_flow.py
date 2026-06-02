@@ -18,6 +18,7 @@ from .const import (
     CONF_COOKIES,
     CONF_ISSUE_TOKEN,
     CONF_REFRESH_TOKEN,
+    CONF_WIZARD_OUTPUT,
     DOMAIN,
     LOGGER,
 )
@@ -43,6 +44,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     _config_entry: ConfigEntry | None = None
     _default_account_type: Environment = Environment.PRODUCTION
+
     @staticmethod
     def _normalize_issue_token(issue_token: str) -> str:
         """Normalize issue token input for validation."""
@@ -124,6 +126,50 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         return lines[url_index], cookies
 
+    @staticmethod
+    def _parse_wizard_output(wizard_output: str) -> tuple[str, str]:
+        """Parse copy-paste output produced by the external auth wizard."""
+        issue_token = ""
+        cookies = ""
+        lines = [line.strip() for line in wizard_output.splitlines() if line.strip()]
+
+        for index, line in enumerate(lines):
+            lower = line.lower()
+            if line.startswith(ConfigFlow._ISSUE_TOKEN_URL_PREFIX):
+                issue_token = line
+                continue
+            if lower.startswith("issue_token="):
+                issue_token = line.split("=", 1)[-1].strip()
+                continue
+            if lower.startswith("issue_token:"):
+                issue_token = line.split(":", 1)[-1].strip()
+                continue
+            if lower.startswith(("issue token url:", "issue token url=")):
+                issue_token = line.split(":", 1)[-1].split("=", 1)[-1].strip()
+                continue
+            if lower in ("issue token url:", "issue token url") and index + 1 < len(lines):
+                issue_token = lines[index + 1]
+                continue
+            if lower.startswith(("cookies=", "cookies:", "cookie header:", "cookie header=")):
+                separator = "=" if "=" in line else ":"
+                cookies = line.split(separator, 1)[-1].strip()
+                continue
+            if lower in ("cookie header:", "cookie header") and index + 1 < len(lines):
+                cookies = lines[index + 1]
+                continue
+
+        if issue_token and not cookies:
+            remaining = [line for line in lines if line != issue_token]
+            cookie_lines = [
+                line
+                for line in remaining
+                if "=" in line and not line.startswith(ConfigFlow._ISSUE_TOKEN_URL_PREFIX)
+            ]
+            if cookie_lines:
+                cookies = "\n".join(cookie_lines)
+
+        return issue_token, cookies
+
     def _normalize_and_validate_credentials(
         self, user_input: dict[str, Any]
     ) -> dict[str, str]:
@@ -131,8 +177,17 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         Returns a dict of field-specific error messages.
         """
+        wizard_output_raw = user_input.get(CONF_WIZARD_OUTPUT, "")
         issue_token_raw = user_input.get(CONF_ISSUE_TOKEN, "")
         cookies_raw = user_input.get(CONF_COOKIES, "")
+
+        if wizard_output_raw:
+            wizard_issue_token, wizard_cookies = self._parse_wizard_output(
+                wizard_output_raw
+            )
+            issue_token_raw = issue_token_raw or wizard_issue_token
+            cookies_raw = cookies_raw or wizard_cookies
+
         issue_token_raw, cookies_raw = self._split_issue_token_and_cookies(
             issue_token_raw,
             cookies_raw,
@@ -142,23 +197,32 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         user_input[CONF_ISSUE_TOKEN] = issue_token
         user_input[CONF_COOKIES] = cookies
+        user_input.pop(CONF_WIZARD_OUTPUT, None)
 
         errors: dict[str, str] = {}
 
         # Validate issue token first
         if not issue_token:
-            errors[CONF_ISSUE_TOKEN] = "missing_issue_token"
+            errors[CONF_WIZARD_OUTPUT if wizard_output_raw else CONF_ISSUE_TOKEN] = (
+                "missing_issue_token"
+            )
         elif not self._validate_issue_token(issue_token):
-            errors[CONF_ISSUE_TOKEN] = "invalid_issue_token"
+            errors[CONF_WIZARD_OUTPUT if wizard_output_raw else CONF_ISSUE_TOKEN] = (
+                "invalid_issue_token"
+            )
 
         # Then validate cookies
         # Note: Cookies field is optional in the UI (users can paste both values
         # in the issue_token field), but after auto-splitting, cookies are still
         # required for authentication.
         if not cookies:
-            errors[CONF_COOKIES] = "missing_cookie_header"
+            errors[CONF_WIZARD_OUTPUT if wizard_output_raw else CONF_COOKIES] = (
+                "missing_cookie_header"
+            )
         elif not self._validate_cookies(cookies):
-            errors[CONF_COOKIES] = "incomplete_cookie_header"
+            errors[CONF_WIZARD_OUTPUT if wizard_output_raw else CONF_COOKIES] = (
+                "incomplete_cookie_header"
+            )
 
         return errors
 
@@ -235,7 +299,8 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     step_id="wizard_login",
                     data_schema=vol.Schema(
                         {
-                            vol.Required(CONF_ISSUE_TOKEN): str,
+                            vol.Required(CONF_WIZARD_OUTPUT, default=""): str,
+                            vol.Optional(CONF_ISSUE_TOKEN, default=""): str,
                             vol.Optional(CONF_COOKIES, default=""): str,
                         }
                     ),
@@ -252,7 +317,8 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             step_id="wizard_login",
             data_schema=vol.Schema(
                 {
-                    vol.Required(CONF_ISSUE_TOKEN): str,
+                    vol.Required(CONF_WIZARD_OUTPUT, default=""): str,
+                    vol.Optional(CONF_ISSUE_TOKEN, default=""): str,
                     vol.Optional(CONF_COOKIES, default=""): str,
                 }
             ),
@@ -321,7 +387,8 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             step_id="wizard_login",
             data_schema=vol.Schema(
                 {
-                    vol.Required(CONF_ISSUE_TOKEN): str,
+                    vol.Required(CONF_WIZARD_OUTPUT, default=""): str,
+                    vol.Optional(CONF_ISSUE_TOKEN, default=""): str,
                     vol.Optional(CONF_COOKIES, default=""): str,
                 }
             ),

@@ -3,14 +3,16 @@
     "step": {
       "wizard_login": {
         "title": "Nest Protect instellen",
-        "description": "Nest Protect is not exposed through the official Google Nest SDM API, even when your alarms appear in the Google Home app. This integration therefore uses the Nest web authentication flow.\n\nRecommended: run `python scripts/nest_protect_cookie_wizard.py` on your computer. The wizard opens a local browser, watches the Network requests, and prints the Issue Token URL and Cookie header you need here.\n\nManual fallback: use your browser Developer Tools Network tab on `https://home.nest.com`. Copy the full `issueToken` request URL and the full Cookie header from the `oauth2/iframe` request. Do not use `document.cookie`.\n\nPaste the Issue Token URL in the first field and the Cookie header in the second field. You may also paste both values into the first field on separate lines.",
+        "description": "Nest Protect is not exposed through the official Google Nest SDM API, even when your alarms appear in the Google Home app. This integration therefore uses the Nest web authentication flow.\n\nRecommended: run `python scripts/nest_protect_cookie_wizard.py` on your computer. The wizard opens a real browser, lets you sign in normally, captures the required request data locally, and prints one block you can paste here.\n\nPaste the full wizard output block into the first field. The separate Issue Token URL and Cookie header fields are only for legacy or emergency fallback use.",
         "data": {
+          "wizard_output": "Wizard output block",
           "issue_token": "Issue Token URL",
           "cookies": "Cookie header"
         },
         "data_description": {
-          "issue_token": "Full URL beginning with https://accounts.google.com/o/oauth2/iframerpc. You can paste both values here separated by a newline.",
-          "cookies": "Full Cookie request header from the oauth2/iframe Network request. Leave empty if already pasted above."
+          "wizard_output": "Paste the complete block printed by scripts/nest_protect_cookie_wizard.py.",
+          "issue_token": "Fallback only: full URL beginning with https://accounts.google.com/o/oauth2/iframerpc.",
+          "cookies": "Fallback only: full Cookie request header captured by the wizard or manual troubleshooting."
         }
       }
     },

@@ -3,14 +3,16 @@
     "step": {
       "wizard_login": {
         "title": "Nest Protect einrichten",
-        "description": "Nest Protect wird von der offiziellen Google Nest SDM API nicht bereitgestellt, auch wenn die Melder in der Google Home App sichtbar sind. Diese Integration nutzt deshalb die Nest-Webauthentifizierung.\n\nEmpfohlen: Führe auf deinem Computer `python scripts/nest_protect_cookie_wizard.py` aus. Der Wizard öffnet einen lokalen Browser, beobachtet die Netzwerkaufrufe und gibt die Issue Token URL und den Cookie-Header aus, die du hier einfügst.\n\nManueller Fallback: Nutze in deinem Browser die Entwicklertools im Netzwerk-Tab auf `https://home.nest.com`. Kopiere die vollständige `issueToken` Request URL und den vollständigen Cookie-Header aus dem `oauth2/iframe` Request. Verwende nicht `document.cookie`.\n\nFüge die Issue Token URL in das erste Feld und den Cookie-Header in das zweite Feld ein. Du kannst auch beide Werte getrennt durch einen Zeilenumbruch in das erste Feld einfügen.",
+        "description": "Nest Protect wird von der offiziellen Google Nest SDM API nicht bereitgestellt, auch wenn die Melder in der Google Home App sichtbar sind. Diese Integration nutzt deshalb die Nest-Webauthentifizierung.\n\nEmpfohlen: Führe auf deinem Computer `python scripts/nest_protect_cookie_wizard.py` aus. Der Wizard öffnet einen echten Browser, du meldest dich ganz normal an, und der Wizard erfasst die nötigen Request-Daten lokal. Danach gibt er einen Block aus, den du hier einfügst.\n\nFüge den vollständigen Wizard-Block in das erste Feld ein. Die separaten Felder für Issue Token URL und Cookie-Header sind nur für alte Setups oder Notfall-Fallbacks gedacht.",
         "data": {
+          "wizard_output": "Wizard-Ausgabeblock",
           "issue_token": "Issue Token URL",
           "cookies": "Cookie-Header"
         },
         "data_description": {
-          "issue_token": "Vollständige URL beginnend mit https://accounts.google.com/o/oauth2/iframerpc. Du kannst beide Werte getrennt durch einen Zeilenumbruch hier einfügen.",
-          "cookies": "Vollständiger Cookie-Request-Header aus dem oauth2/iframe Netzwerkaufruf. Leer lassen, wenn er bereits oben eingefügt wurde."
+          "wizard_output": "Füge den vollständigen Block ein, den scripts/nest_protect_cookie_wizard.py ausgibt.",
+          "issue_token": "Nur Fallback: vollständige URL beginnend mit https://accounts.google.com/o/oauth2/iframerpc.",
+          "cookies": "Nur Fallback: vollständiger Cookie-Request-Header aus Wizard oder manueller Fehlersuche."
         }
       }
     },

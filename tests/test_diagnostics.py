@@ -9,5 +9,6 @@ def test_diagnostics_redacts_auth_secrets():
     assert "cookies" in TO_REDACT
     assert "issue_token" in TO_REDACT
     assert "refresh_token" in TO_REDACT
+    assert "wizard_output" in TO_REDACT
     assert "id_token" in TO_REDACT
     assert "jwt" in TO_REDACT
