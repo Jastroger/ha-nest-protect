@@ -38,6 +38,8 @@ from .models import (
 
 _LOGGER = logging.getLogger(__package__)
 
+DEFAULT_REQUEST_TIMEOUT = ClientTimeout(total=30)
+
 
 class NestClient:
     """Interface class for the Nest API."""
@@ -90,6 +92,8 @@ class NestClient:
             await self.get_access_token_from_refresh_token(self.refresh_token)
         elif self.issue_token and self.cookies:
             await self.get_access_token_from_cookies(self.issue_token, self.cookies)
+        else:
+            raise BadCredentialsException("No authentication data available.")
 
         return self.auth
 
@@ -106,6 +110,7 @@ class NestClient:
 
         async with self.session.post(
             TOKEN_URL,
+            timeout=DEFAULT_REQUEST_TIMEOUT,
             data=FormData(
                 {
                     "refresh_token": self.refresh_token,
@@ -143,6 +148,7 @@ class NestClient:
 
         async with self.session.get(
             issue_token,
+            timeout=DEFAULT_REQUEST_TIMEOUT,
             headers={
                 "Sec-Fetch-Mode": "cors",
                 "User-Agent": USER_AGENT,
@@ -171,6 +177,7 @@ class NestClient:
 
         async with self.session.post(
             NEST_AUTH_URL_JWT,
+            timeout=DEFAULT_REQUEST_TIMEOUT,
             data=FormData(
                 {
                     "embed_google_oauth_access_token": True,
@@ -190,6 +197,7 @@ class NestClient:
 
         async with self.session.get(
             self.environment.host + "/session",
+            timeout=DEFAULT_REQUEST_TIMEOUT,
             headers={
                 "Authorization": f"Basic {nest_auth.jwt}",
                 "cookie": "G_ENABLED_IDPS=google; eu_cookie_accepted=1; viewer-volume=0.5; cztoken="
@@ -242,6 +250,7 @@ class NestClient:
         """Get first data."""
         async with self.session.post(
             APP_LAUNCH_URL_FORMAT.format(host=self.environment.host, user_id=user_id),
+            timeout=DEFAULT_REQUEST_TIMEOUT,
             json=request,
             headers={
                 "Authorization": f"Basic {nest_access_token}",
@@ -344,6 +353,7 @@ class NestClient:
         # TODO throw better exceptions
         async with self.session.post(
             f"{transport_url}/v6/put",
+            timeout=DEFAULT_REQUEST_TIMEOUT,
             json={
                 "session": f"ios-${user_id}.{random}.{epoch}",
                 "objects": objects_to_update,

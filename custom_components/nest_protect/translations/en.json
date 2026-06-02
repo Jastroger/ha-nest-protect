@@ -1,56 +1,34 @@
 {
   "config": {
-    "abort": {
-      "already_configured": "Account is already configured",
-      "reauth_successful": "Re-authentication successful!"
-    },
-    "error": {
-      "cannot_connect": "Failed to connect",
-      "invalid_auth": "Invalid authentication",
-      "invalid_issue_token": "Invalid issue token URL. Must start with https://accounts.google.com/ and contain the issueToken action.",
-      "invalid_cookies": "Invalid cookies format. Ensure you copied the complete cookie header from the oauth2/iframe request.",
-      "unknown": "Unexpected error",
-      "missing_issue_token": "Issue token URL is required. Please paste the full Request URL from the issueToken network call.",
-      "missing_cookies": "Cookies are required. Please paste the full Cookie header from the oauth2/iframe request."
-    },
     "step": {
-      "user": {
-        "description": "Select your Account Type. Most users will need to select Google Account. Field Test is only available for selected testers in the Google Field Test program.",
-        "data": {
-          "account_type": "Account Type"
-        }
-      },
-      "auth_method": {
-        "title": "Choose Authentication Help",
-        "description": "**Wizard (Recommended)**: Guided step-by-step process with clear instructions to extract credentials from your browser.\n\n**Manual**: Condensed instructions for users already familiar with browser developer tools.",
-        "data": {
-          "auth_method": "Authentication help"
-        }
-      },
       "wizard_login": {
-        "title": "Wizard: Quick Setup",
-        "description": "## 🚀 Quick & Easy Credential Extraction\n\n**Recommended options (reliable):**\n\n### Option A: Network Header (Recommended)\n\n1. Open [home.nest.com](https://home.nest.com) in a **private/incognito window**\n2. **Sign in** with your Google account\n3. Open **Developer Tools** → **Network** tab → enable **Preserve log**\n4. Filter for `issueToken` and copy the full **Request URL**\n5. Filter for `oauth2/iframe`, open the latest request, and copy the full **Cookie** header value\n\n**Important:** Copy the **Cookie header** from the `oauth2/iframe` request, **not** `document.cookie`.\n\n### Option B: Playwright Wizard (Recommended)\n\nRun the helper script from the repo:\n\n`python3 scripts/nest_protect_cookie_wizard.py`\n\nIt guides you through the same flow and copies the **Issue Token URL** and **Cookie header** for you.\n\n### Not recommended: Console snippets\n\nConsole snippets are **unreliable** and often return incomplete cookies. Use the Network-Header method or the Playwright wizard instead.\n\n### Paste Below\n\n**💡 Tip:** You can paste both values into the first field separated by a line break, and they will be automatically split into the correct fields.\n\nPaste the values in the fields below:\n- **Issue Token URL**: the full request URL from `issueToken`\n- **Cookies**: the full **Cookie** header value from `oauth2/iframe`",
+        "title": "Set up Nest Protect",
+        "description": "Nest Protect is not exposed through the official Google Nest SDM API, even when your alarms appear in the Google Home app. This integration therefore uses the Nest web authentication flow.\n\nRecommended: run `python scripts/nest_protect_cookie_wizard.py` on your computer. The wizard opens a local browser, watches the Network requests, and prints the Issue Token URL and Cookie header you need here.\n\nManual fallback: use your browser Developer Tools Network tab on `https://home.nest.com`. Copy the full `issueToken` request URL and the full Cookie header from the `oauth2/iframe` request. Do not use `document.cookie`.\n\nPaste the Issue Token URL in the first field and the Cookie header in the second field. You may also paste both values into the first field on separate lines.",
         "data": {
           "issue_token": "Issue Token URL",
-          "cookies": "Cookies (optional if pasted above)"
+          "cookies": "Cookie header"
         },
         "data_description": {
-          "issue_token": "Paste from clipboard (starts with https://accounts.google.com/o/oauth2/iframerpc). You can paste both token and cookies here separated by a newline.",
-          "cookies": "Paste from clipboard (leave empty if already pasted above with token)"
-        }
-      },
-      "account_link": {
-        "title": "Connect Your Nest Account",
-        "description": "Follow these steps to get your credentials:\n\n1. Open an **Incognito/Private** browser window\n2. Enable **third-party cookies** in browser settings\n3. Go to [home.nest.com](https://home.nest.com) and sign in with Google\n4. Open **Developer Tools** (F12) → **Network** tab → Check **Preserve Log**\n5. In the filter box, type `issueToken` and copy the full **Request URL**\n6. In the filter box, type `oauth2/iframe`, click the last request, and copy the entire **Cookie** header value\n\n⚠️ Do not log out of home.nest.com after copying credentials",
-        "data": {
-          "issue_token": "Issue Token URL",
-          "cookies": "Cookies"
-        },
-        "data_description": {
-          "issue_token": "Full URL starting with https://accounts.google.com/o/oauth2/iframerpc?action=issueToken...",
-          "cookies": "Complete cookie string from the oauth2/iframe request headers"
+          "issue_token": "Full URL beginning with https://accounts.google.com/o/oauth2/iframerpc. You can paste both values here separated by a newline.",
+          "cookies": "Full Cookie request header from the oauth2/iframe Network request. Leave empty if already pasted above."
         }
       }
+    },
+    "error": {
+      "cannot_connect": "Connection failed",
+      "network_timeout": "The Google/Nest request timed out. Try again after checking your network connection.",
+      "authentication_rejected": "Google/Nest rejected these credentials. Run the wizard again and do not log out of home.nest.com afterward.",
+      "missing_issue_token": "Issue Token URL is required.",
+      "invalid_issue_token": "Invalid Issue Token URL. Paste the full issueToken request URL, including all query parameters.",
+      "missing_cookie_header": "Cookie header is required.",
+      "incomplete_cookie_header": "Cookie header looks incomplete. Copy the full Cookie header from the oauth2/iframe Network request.",
+      "no_devices_found": "Authentication succeeded, but no Nest Protect devices were found on this account.",
+      "unexpected_response": "Nest returned an unexpected response. Try again or open an issue with redacted diagnostics.",
+      "unknown": "Unexpected error"
+    },
+    "abort": {
+      "already_configured": "Account is already configured",
+      "reauth_successful": "Re-authentication successful"
     }
   },
   "entity": {

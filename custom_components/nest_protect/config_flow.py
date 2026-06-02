@@ -15,7 +15,6 @@ from .const import (
     CONF_ACCESS_TOKEN,
     CONF_ACCESS_TOKEN_EXPIRES_AT,
     CONF_ACCOUNT_TYPE,
-    CONF_AUTH_METHOD,
     CONF_COOKIES,
     CONF_ISSUE_TOKEN,
     CONF_REFRESH_TOKEN,
@@ -24,8 +23,16 @@ from .const import (
 )
 from .pynest.client import NestClient
 from .pynest.const import NEST_ENVIRONMENTS
-from .pynest.enums import Environment
+from .pynest.enums import BucketType, Environment
 from .pynest.exceptions import BadCredentialsException
+
+
+class NoNestProtectDevicesFound(Exception):
+    """Raised when authentication works but no supported devices are returned."""
+
+
+class UnexpectedNestResponse(Exception):
+    """Raised when Nest returns a response that cannot be used."""
 
 
 class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -36,8 +43,6 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     _config_entry: ConfigEntry | None = None
     _default_account_type: Environment = Environment.PRODUCTION
-    _auth_method: str = "wizard"
-
     @staticmethod
     def _normalize_issue_token(issue_token: str) -> str:
         """Normalize issue token input for validation."""
@@ -151,16 +156,16 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         # in the issue_token field), but after auto-splitting, cookies are still
         # required for authentication.
         if not cookies:
-            errors[CONF_COOKIES] = "missing_cookies"
+            errors[CONF_COOKIES] = "missing_cookie_header"
         elif not self._validate_cookies(cookies):
-            errors[CONF_COOKIES] = "invalid_cookies"
+            errors[CONF_COOKIES] = "incomplete_cookie_header"
 
         return errors
 
     async def async_validate_input(self, user_input: dict[str, Any]) -> dict[str, Any]:
         """Validate user credentials."""
 
-        environment = user_input[CONF_ACCOUNT_TYPE]
+        environment = user_input.get(CONF_ACCOUNT_TYPE, Environment.PRODUCTION)
         session = async_create_clientsession(self.hass)
         client = NestClient(session=session, environment=NEST_ENVIRONMENTS[environment])
 
@@ -185,11 +190,22 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         nest = await client.authenticate(auth.access_token)
         data = await client.get_first_data(nest.access_token, nest.userid)
 
+        if not hasattr(data, "updated_buckets"):
+            raise UnexpectedNestResponse("Nest response did not include buckets.")
+
         email = ""
+        has_supported_device = False
         for bucket in data.updated_buckets:
             key = bucket.object_key
             if key.startswith("user."):
-                email = bucket.value["email"]
+                email = bucket.value.get("email", "")
+            if bucket.type in (BucketType.TOPAZ, BucketType.KRYPTONITE):
+                has_supported_device = True
+
+        if not has_supported_device:
+            raise NoNestProtectDevicesFound(
+                "Authentication succeeded but no Nest Protect devices were found."
+            )
 
         # Set unique id to user_id (object.key: user.xxxx)
         await self.async_set_unique_id(nest.user)
@@ -206,35 +222,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         """Handle the initial step."""
-        return await self.async_step_account_type(user_input)
-
-    async def async_step_auth_method(
-        self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
-        """Handle a flow initialized by the user."""
-        errors = {}
-
-        if user_input and CONF_AUTH_METHOD in user_input:
-            self._auth_method = user_input[CONF_AUTH_METHOD]
-            if self._auth_method == "wizard":
-                return await self.async_step_wizard_login()
-            else:
-                return await self.async_step_account_link()
-
-        return self.async_show_form(
-            step_id="auth_method",
-            data_schema=vol.Schema(
-                {
-                    vol.Required(CONF_AUTH_METHOD, default=self._auth_method): vol.In(
-                        {
-                            "wizard": "Wizard (recommended)",
-                            "manual": "Manual",
-                        }
-                    )
-                }
-            ),
-            errors=errors,
-        )
+        return await self.async_step_wizard_login(user_input)
 
     async def async_step_wizard_login(
         self, user_input: dict[str, Any] | None = None
@@ -273,30 +261,6 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             },
         )
 
-    async def async_step_account_type(
-        self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
-        """Handle account type selection."""
-        errors = {}
-
-        if user_input:
-            self._default_account_type = user_input[CONF_ACCOUNT_TYPE]
-            return await self.async_step_auth_method()
-
-        return self.async_show_form(
-            step_id="user",
-            data_schema=vol.Schema(
-                {
-                    vol.Required(
-                        CONF_ACCOUNT_TYPE, default=self._default_account_type
-                    ): vol.In(
-                        {key: env.name for key, env in NEST_ENVIRONMENTS.items()}
-                    ),
-                }
-            ),
-            errors=errors,
-        )
-
     async def async_step_account_link(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
@@ -312,10 +276,16 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     validation = await self.async_validate_input(user_input)
                     email = validation["email"]
                     token_payload = validation["token_payload"]
-                except (TimeoutError, ClientError):
+                except TimeoutError:
+                    errors["base"] = "network_timeout"
+                except ClientError:
                     errors["base"] = "cannot_connect"
                 except BadCredentialsException:
-                    errors["base"] = "invalid_auth"
+                    errors["base"] = "authentication_rejected"
+                except NoNestProtectDevicesFound:
+                    errors["base"] = "no_devices_found"
+                except UnexpectedNestResponse:
+                    errors["base"] = "unexpected_response"
                 except Exception as exception:  # pylint: disable=broad-except
                     errors["base"] = "unknown"
                     LOGGER.exception(exception)
@@ -348,11 +318,11 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 )
 
         return self.async_show_form(
-            step_id="account_link",
+            step_id="wizard_login",
             data_schema=vol.Schema(
                 {
                     vol.Required(CONF_ISSUE_TOKEN): str,
-                    vol.Required(CONF_COOKIES): str,
+                    vol.Optional(CONF_COOKIES, default=""): str,
                 }
             ),
             errors=errors,
@@ -372,4 +342,4 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             CONF_ACCOUNT_TYPE, Environment.PRODUCTION
         )
 
-        return await self.async_step_account_link(user_input)
+        return await self.async_step_wizard_login(user_input)

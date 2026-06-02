@@ -1,85 +1,44 @@
 {
   "config": {
-    "abort": {
-      "already_configured": "Account is al geconfigureerd",
-      "reauth_successful": "Herauthenticatie geslaagd!"
-    },
-    "error": {
-      "cannot_connect": "Kan geen verbinding maken",
-      "invalid_auth": "Ongeldige authenticatie",
-      "invalid_issue_token": "Ongeldige issue token URL. Moet beginnen met https://accounts.google.com/ en de issueToken-actie bevatten.",
-      "invalid_cookies": "Ongeldig cookie-formaat. Zorg ervoor dat u de volledige cookie-header hebt gekopieerd van het oauth2/iframe-verzoek.",
-      "unknown": "Onverwachte fout",
-      "missing_issue_token": "Issue token URL is vereist. Plak de volledige Request URL van de issueToken netwerkoproep.",
-      "missing_cookies": "Cookies zijn vereist. Plak de volledige Cookie-header van het oauth2/iframe-verzoek."
-    },
     "step": {
-      "user": {
-        "description": "Selecteer uw accounttype. De meeste gebruikers moeten Google Account selecteren. Field Test is alleen beschikbaar voor geselecteerde testers in het Google Field Test-programma.",
-        "data": {
-          "account_type": "Accounttype"
-        }
-      },
-      "auth_method": {
-        "title": "Kies authenticatiehulp",
-        "description": "**Wizard (Aanbevolen)**: Begeleide stapsgewijze proces met een interactieve hulppagina en automatische validatie.\n\n**Manual**: Verkorte instructies voor gebruikers die al vertrouwd zijn met de ontwikkelaarstools van de browser.",
-        "data": {
-          "auth_method": "Authenticatiehulp"
-        }
-      },
       "wizard_login": {
-        "title": "Wizard: Snelle Setup",
-        "description": "## 🚀 Snelle & Eenvoudige Credential-Extractie\n\n**Aanbevolen opties (betrouwbaar):**\n\n### Optie A: Netwerk Header (Aanbevolen)\n\n1. Open [home.nest.com](https://home.nest.com) in een **privé/incognito-venster**\n2. **Meld u aan** met uw Google-account\n3. Open **Ontwikkelaarstools** → **Netwerk**-tabblad → activeer **Bewaar logboek**\n4. Filter op `issueToken` en kopieer de volledige **Request URL**\n5. Filter op `oauth2/iframe`, open het laatste verzoek en kopieer de volledige waarde van de **Cookie**-header\n\n**Belangrijk:** Kopieer de **Cookie-header** van het `oauth2/iframe`-verzoek, **niet** `document.cookie`.\n\n### Optie B: Playwright Wizard (Aanbevolen)\n\nVoer het hulp-script uit vanuit de repo:\n\n`python3 scripts/nest_protect_cookie_wizard.py`\n\nHet leidt u door dezelfde flow en kopieert de **Issue Token URL** en **Cookie-header** voor u.\n\n### Niet aanbevolen: Console snippets\n\nConsole snippets zijn **onbetrouwbaar** en retourneren vaak onvolledige cookies. Gebruik in plaats daarvan de Netwerk-Header-methode of de Playwright-wizard.\n\n### Plak hieronder\n\n**💡 Tip:** U kunt beide waarden in het eerste veld plakken, gescheiden door een regelafbreking, en ze worden automatisch opgesplitst in de juiste velden.\n\nPlak de waarden in de onderstaande velden:\n- **Issue Token URL**: de volledige request URL van `issueToken`\n- **Cookies**: de volledige waarde van de **Cookie**-header van `oauth2/iframe`",
+        "title": "Nest Protect instellen",
+        "description": "Nest Protect is not exposed through the official Google Nest SDM API, even when your alarms appear in the Google Home app. This integration therefore uses the Nest web authentication flow.\n\nRecommended: run `python scripts/nest_protect_cookie_wizard.py` on your computer. The wizard opens a local browser, watches the Network requests, and prints the Issue Token URL and Cookie header you need here.\n\nManual fallback: use your browser Developer Tools Network tab on `https://home.nest.com`. Copy the full `issueToken` request URL and the full Cookie header from the `oauth2/iframe` request. Do not use `document.cookie`.\n\nPaste the Issue Token URL in the first field and the Cookie header in the second field. You may also paste both values into the first field on separate lines.",
         "data": {
           "issue_token": "Issue Token URL",
-          "cookies": "Cookies (optioneel als hierboven geplakt)"
+          "cookies": "Cookie header"
         },
         "data_description": {
-          "issue_token": "Plakken vanaf klembord (begint met https://accounts.google.com/o/oauth2/iframerpc). U kunt zowel token als cookies hier plakken, gescheiden door een regelafbreking.",
-          "cookies": "Plakken vanaf klembord (laat leeg als al hierboven met token geplakt)"
-        }
-      },
-      "account_link": {
-        "title": "Verbind uw Nest-account",
-        "description": "Volg deze stappen om uw inloggegevens te verkrijgen:\n\n1. Open een **Incognito/Privé** browservenster\n2. Schakel **cookies van derden** in de browserinstellingen in\n3. Ga naar [home.nest.com](https://home.nest.com) en meld u aan met Google\n4. Open **Ontwikkelaarstools** (F12) → **Network**-tabblad → Schakel **Preserve Log** in\n5. Typ in het filterveld `issueToken` en kopieer de volledige **Request URL**\n6. Typ in het filterveld `oauth2/iframe`, klik op het laatste verzoek en kopieer de volledige waarde van de **Cookie**-header\n\n⚠️ Meld u niet af bij home.nest.com na het kopiëren van de inloggegevens",
-        "data": {
-          "issue_token": "Issue Token URL",
-          "cookies": "Cookies"
-        },
-        "data_description": {
-          "issue_token": "Volledige URL die begint met https://accounts.google.com/o/oauth2/iframerpc?action=issueToken...",
-          "cookies": "Volledige cookie-string van de oauth2/iframe request headers"
+          "issue_token": "Full URL beginning with https://accounts.google.com/o/oauth2/iframerpc. You can paste both values here separated by a newline.",
+          "cookies": "Full Cookie request header from the oauth2/iframe Network request. Leave empty if already pasted above."
         }
       }
-    }
-  },
-  "options": {
-    "abort": {
-      "already_configured": "Account is al geconfigureerd"
     },
     "error": {
-      "cannot_connect": "Kan geen verbinding maken",
-      "invalid_auth": "Ongeldige authenticatie",
-      "unknown": "Onverwachte fout"
+      "cannot_connect": "Connection failed",
+      "network_timeout": "The Google/Nest request timed out. Try again after checking your network connection.",
+      "authentication_rejected": "Google/Nest rejected these credentials. Run the wizard again and do not log out of home.nest.com afterward.",
+      "missing_issue_token": "Issue Token URL is required.",
+      "invalid_issue_token": "Invalid Issue Token URL. Paste the full issueToken request URL, including all query parameters.",
+      "missing_cookie_header": "Cookie header is required.",
+      "incomplete_cookie_header": "Cookie header looks incomplete. Copy the full Cookie header from the oauth2/iframe Network request.",
+      "no_devices_found": "Authentication succeeded, but no Nest Protect devices were found on this account.",
+      "unexpected_response": "Nest returned an unexpected response. Try again or open an issue with redacted diagnostics.",
+      "unknown": "Unexpected error"
     },
-    "step": {
-      "account_link": {
-        "description": "Haal uw issue token en cookies op volgens de instructies in de README voor integratie en plak ze hieronder.",
-        "data": {
-          "issue_token": "Issue Token URL",
-          "cookies": "Cookies"
-        }
-      }
+    "abort": {
+      "already_configured": "Account is already configured",
+      "reauth_successful": "Re-authentication successful"
     }
   },
   "entity": {
     "select": {
       "night_light_brightness": {
-        "name": "Nachtlamphelderheid",
+        "name": "Night Light Brightness",
         "state": {
-          "low": "Laag",
-          "medium": "Gemiddeld",
-          "high": "Hoog"
+          "low": "Low",
+          "medium": "Medium",
+          "high": "High"
         }
       }
     }

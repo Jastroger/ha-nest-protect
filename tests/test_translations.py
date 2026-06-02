@@ -15,6 +15,17 @@ TRANSLATION_FILES = [
 ]
 
 
+def _flatten_keys(data, prefix=""):
+    """Flatten nested dict keys."""
+    keys = set()
+    for key, value in data.items():
+        path = f"{prefix}.{key}" if prefix else key
+        keys.add(path)
+        if isinstance(value, dict):
+            keys.update(_flatten_keys(value, path))
+    return keys
+
+
 @pytest.mark.parametrize("filepath", TRANSLATION_FILES)
 def test_translation_files_are_valid_json(filepath):
     """Test that all translation files are valid JSON."""
@@ -92,3 +103,14 @@ def test_wizard_description_renders_valid_javascript():
     assert js_code.endswith("})();"), "JavaScript should end with })();"
     assert "try{" in js_code, "JavaScript should have try block"
     assert "catch(" in js_code, "JavaScript should have catch block"
+
+
+@pytest.mark.parametrize("filepath", TRANSLATION_FILES[1:])
+def test_translation_keys_match_strings(filepath):
+    """Test that translated files keep the same keys as strings.json."""
+    with open("custom_components/nest_protect/strings.json", encoding="utf-8") as f:
+        source = json.load(f)
+    with open(filepath, encoding="utf-8") as f:
+        translated = json.load(f)
+
+    assert _flatten_keys(translated) == _flatten_keys(source)

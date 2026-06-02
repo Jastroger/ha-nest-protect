@@ -1,85 +1,44 @@
 {
   "config": {
-    "abort": {
-      "already_configured": "A conta já está configurada",
-      "reauth_successful": "Reautenticação bem-sucedida!"
-    },
-    "error": {
-      "cannot_connect": "Falhou ao se conectar",
-      "invalid_auth": "Autenticação inválida",
-      "invalid_issue_token": "URL do token de emissão inválida. Deve começar com https://accounts.google.com/ e conter a ação issueToken.",
-      "invalid_cookies": "Formato de cookies inválido. Certifique-se de ter copiado o cabeçalho de cookies completo da solicitação oauth2/iframe.",
-      "unknown": "Erro inesperado",
-      "missing_issue_token": "URL do token de emissão é obrigatória. Cole a URL de solicitação completa da chamada de rede issueToken.",
-      "missing_cookies": "Cookies são obrigatórios. Cole o cabeçalho Cookie completo da solicitação oauth2/iframe."
-    },
     "step": {
-      "user": {
-        "description": "Selecione o tipo de conta. A maioria dos usuários precisará selecionar Conta Google. Field Test está disponível apenas para testadores selecionados no programa Google Field Test.",
-        "data": {
-          "account_type": "Tipo de conta"
-        }
-      },
-      "auth_method": {
-        "title": "Escolha a ajuda de autenticação",
-        "description": "**Wizard (Recomendado)**: Processo guiado passo a passo com uma página de ajuda interativa e validação automática.\n\n**Manual**: Instruções condensadas para usuários já familiarizados com as ferramentas de desenvolvedor do navegador.",
-        "data": {
-          "auth_method": "Ajuda de autenticação"
-        }
-      },
       "wizard_login": {
-        "title": "Wizard: Configuração Rápida",
-        "description": "## 🚀 Extração Rápida e Fácil de Credenciais\n\n**Opções recomendadas (confiáveis):**\n\n### Opção A: Cabeçalho de Rede (Recomendado)\n\n1. Abra [home.nest.com](https://home.nest.com) em uma **janela privada/anônima**\n2. **Faça login** com sua conta Google\n3. Abra as **Ferramentas do Desenvolvedor** → Aba **Rede** → ative **Preservar registro**\n4. Filtre por `issueToken` e copie a **URL de solicitação** completa\n5. Filtre por `oauth2/iframe`, abra a última solicitação e copie o valor completo do cabeçalho **Cookie**\n\n**Importante:** Copie o **cabeçalho Cookie** da solicitação `oauth2/iframe`, **não** `document.cookie`.\n\n### Opção B: Wizard Playwright (Recomendado)\n\nExecute o script auxiliar do repositório:\n\n`python3 scripts/nest_protect_cookie_wizard.py`\n\nEle o orienta pelo mesmo fluxo e copia a **URL do Token de Emissão** e o **cabeçalho Cookie** para você.\n\n### Não recomendado: Snippets de console\n\nSnippets de console são **pouco confiáveis** e frequentemente retornam cookies incompletos. Use o método de Cabeçalho de Rede ou o wizard Playwright.\n\n### Colar abaixo\n\n**💡 Dica:** Você pode colar ambos os valores no primeiro campo separados por uma quebra de linha, e eles serão automaticamente divididos nos campos corretos.\n\nCole os valores nos campos abaixo:\n- **URL do Token de Emissão**: a URL de solicitação completa de `issueToken`\n- **Cookies**: o valor completo do cabeçalho **Cookie** de `oauth2/iframe`",
+        "title": "Configurar Nest Protect",
+        "description": "Nest Protect is not exposed through the official Google Nest SDM API, even when your alarms appear in the Google Home app. This integration therefore uses the Nest web authentication flow.\n\nRecommended: run `python scripts/nest_protect_cookie_wizard.py` on your computer. The wizard opens a local browser, watches the Network requests, and prints the Issue Token URL and Cookie header you need here.\n\nManual fallback: use your browser Developer Tools Network tab on `https://home.nest.com`. Copy the full `issueToken` request URL and the full Cookie header from the `oauth2/iframe` request. Do not use `document.cookie`.\n\nPaste the Issue Token URL in the first field and the Cookie header in the second field. You may also paste both values into the first field on separate lines.",
         "data": {
-          "issue_token": "URL do Token de Emissão",
-          "cookies": "Cookies (opcional se colado acima)"
+          "issue_token": "Issue Token URL",
+          "cookies": "Cookie header"
         },
         "data_description": {
-          "issue_token": "Cole da área de transferência (começa com https://accounts.google.com/o/oauth2/iframerpc). Você pode colar tanto o token quanto os cookies aqui separados por uma quebra de linha.",
-          "cookies": "Cole da área de transferência (deixe em branco se já colado acima com o token)"
-        }
-      },
-      "account_link": {
-        "title": "Conecte sua conta Nest",
-        "description": "Siga estas etapas para obter suas credenciais:\n\n1. Abra uma janela de navegação **Anônima/Privada**\n2. Ative **cookies de terceiros** nas configurações do navegador\n3. Vá para [home.nest.com](https://home.nest.com) e faça login com o Google\n4. Abra as **Ferramentas do Desenvolvedor** (F12) → Aba **Network** → Marque **Preserve Log**\n5. No campo de filtro, digite `issueToken` e copie a **URL de solicitação** completa\n6. No campo de filtro, digite `oauth2/iframe`, clique na última solicitação e copie o valor completo do cabeçalho **Cookie**\n\n⚠️ Não faça logout de home.nest.com após copiar as credenciais",
-        "data": {
-          "issue_token": "URL do Token de Emissão",
-          "cookies": "Cookies"
-        },
-        "data_description": {
-          "issue_token": "URL completa começando com https://accounts.google.com/o/oauth2/iframerpc?action=issueToken...",
-          "cookies": "String completa de cookies dos cabeçalhos da solicitação oauth2/iframe"
+          "issue_token": "Full URL beginning with https://accounts.google.com/o/oauth2/iframerpc. You can paste both values here separated by a newline.",
+          "cookies": "Full Cookie request header from the oauth2/iframe Network request. Leave empty if already pasted above."
         }
       }
-    }
-  },
-  "options": {
-    "abort": {
-      "already_configured": "A conta já está configurada"
     },
     "error": {
-      "cannot_connect": "Falhou ao se conectar",
-      "invalid_auth": "Autenticação inválida",
-      "unknown": "Erro inesperado"
+      "cannot_connect": "Connection failed",
+      "network_timeout": "The Google/Nest request timed out. Try again after checking your network connection.",
+      "authentication_rejected": "Google/Nest rejected these credentials. Run the wizard again and do not log out of home.nest.com afterward.",
+      "missing_issue_token": "Issue Token URL is required.",
+      "invalid_issue_token": "Invalid Issue Token URL. Paste the full issueToken request URL, including all query parameters.",
+      "missing_cookie_header": "Cookie header is required.",
+      "incomplete_cookie_header": "Cookie header looks incomplete. Copy the full Cookie header from the oauth2/iframe Network request.",
+      "no_devices_found": "Authentication succeeded, but no Nest Protect devices were found on this account.",
+      "unexpected_response": "Nest returned an unexpected response. Try again or open an issue with redacted diagnostics.",
+      "unknown": "Unexpected error"
     },
-    "step": {
-      "account_link": {
-        "description": "Obtenha seu token de emissão e cookies seguindo as instruções no LEIA-ME de integração e cole-os abaixo.",
-        "data": {
-          "issue_token": "URL do Token de Emissão",
-          "cookies": "Cookies"
-        }
-      }
+    "abort": {
+      "already_configured": "Account is already configured",
+      "reauth_successful": "Re-authentication successful"
     }
   },
   "entity": {
     "select": {
       "night_light_brightness": {
-        "name": "Brilho da luz noturna",
+        "name": "Night Light Brightness",
         "state": {
-          "low": "Baixo",
-          "medium": "Médio",
-          "high": "Alto"
+          "low": "Low",
+          "medium": "Medium",
+          "high": "High"
         }
       }
     }

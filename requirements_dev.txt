@@ -1,2 +1,4 @@
+# Kept pinned until the test environment is moved to a Python/toolchain combo
+# with reliable wheels for Home Assistant's native dependencies on Windows.
 homeassistant==2024.12.1
 pre-commit

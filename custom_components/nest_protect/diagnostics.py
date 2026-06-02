@@ -11,11 +11,23 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceEntry
 
 from . import HomeAssistantNestProtectData
-from .const import CONF_COOKIES, CONF_ISSUE_TOKEN, CONF_REFRESH_TOKEN, DOMAIN
+from .const import (
+    CONF_ACCESS_TOKEN,
+    CONF_ACCESS_TOKEN_EXPIRES_AT,
+    CONF_COOKIES,
+    CONF_ISSUE_TOKEN,
+    CONF_REFRESH_TOKEN,
+    DOMAIN,
+)
 from .pynest.const import FULL_NEST_REQUEST
 
 TO_REDACT = [
     "access_token",
+    CONF_ACCESS_TOKEN,
+    CONF_ACCESS_TOKEN_EXPIRES_AT,
+    CONF_COOKIES,
+    CONF_ISSUE_TOKEN,
+    CONF_REFRESH_TOKEN,
     "address_lines",
     "aux_primary_fabric_id",
     "city",
@@ -119,3 +131,9 @@ async def async_get_device_diagnostics(
     }
 
     return async_redact_data(data, TO_REDACT)
+    "cookie",
+    "cookies",
+    "id_token",
+    "issue_token",
+    "jwt",
+    "refresh_token",

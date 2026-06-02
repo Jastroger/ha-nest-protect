@@ -1,85 +1,44 @@
 {
   "config": {
-    "abort": {
-      "already_configured": "Le compte est déjà configuré",
-      "reauth_successful": "Ré-authentification réussie!"
-    },
-    "error": {
-      "cannot_connect": "Échec de connexion",
-      "invalid_auth": "Authentification invalide",
-      "invalid_issue_token": "URL du jeton d'émission invalide. Doit commencer par https://accounts.google.com/ et contenir l'action issueToken.",
-      "invalid_cookies": "Format des cookies invalide. Assurez-vous d'avoir copié l'en-tête complet des cookies de la requête oauth2/iframe.",
-      "unknown": "Erreur inattendue",
-      "missing_issue_token": "L'URL du jeton d'émission est requise. Veuillez coller l'URL de requête complète de l'appel réseau issueToken.",
-      "missing_cookies": "Les cookies sont requis. Veuillez coller l'en-tête Cookie complet de la requête oauth2/iframe."
-    },
     "step": {
-      "user": {
-        "description": "Sélectionnez votre type de compte. La plupart des utilisateurs devront sélectionner Compte Google. Field Test n'est disponible que pour certains testeurs du programme Google Field Test.",
-        "data": {
-          "account_type": "Type de compte"
-        }
-      },
-      "auth_method": {
-        "title": "Choisir l'aide à l'authentification",
-        "description": "**Wizard (Recommandé)**: Processus guidé étape par étape avec une page d'aide interactive et une validation automatique.\n\n**Manual**: Instructions condensées pour les utilisateurs déjà familiarisés avec les outils de développement du navigateur.",
-        "data": {
-          "auth_method": "Aide à l'authentification"
-        }
-      },
       "wizard_login": {
-        "title": "Wizard: Configuration rapide",
-        "description": "## 🚀 Extraction rapide et facile des identifiants\n\n**Options recommandées (fiables):**\n\n### Option A: En-tête réseau (Recommandé)\n\n1. Ouvrez [home.nest.com](https://home.nest.com) dans une **fenêtre privée/incognito**\n2. **Connectez-vous** avec votre compte Google\n3. Ouvrez les **Outils de développement** → Onglet **Réseau** → activez **Conserver le journal**\n4. Filtrez par `issueToken` et copiez l'**URL de requête** complète\n5. Filtrez par `oauth2/iframe`, ouvrez la dernière requête et copiez la valeur complète de l'en-tête **Cookie**\n\n**Important:** Copiez l'**en-tête Cookie** de la requête `oauth2/iframe`, **pas** `document.cookie`.\n\n### Option B: Wizard Playwright (Recommandé)\n\nExécutez le script d'aide depuis le dépôt:\n\n`python3 scripts/nest_protect_cookie_wizard.py`\n\nIl vous guide dans le même flux et copie l'**URL du jeton d'émission** et l'**en-tête Cookie** pour vous.\n\n### Non recommandé: Extraits de console\n\nLes extraits de console sont **peu fiables** et retournent souvent des cookies incomplets. Utilisez plutôt la méthode d'en-tête réseau ou le wizard Playwright.\n\n### Coller ci-dessous\n\n**💡 Astuce:** Vous pouvez coller les deux valeurs dans le premier champ séparées par un saut de ligne, et elles seront automatiquement réparties dans les champs corrects.\n\nCollez les valeurs dans les champs ci-dessous:\n- **URL du jeton d'émission**: l'URL de requête complète de `issueToken`\n- **Cookies**: la valeur complète de l'en-tête **Cookie** de `oauth2/iframe`",
+        "title": "Configurer Nest Protect",
+        "description": "Nest Protect is not exposed through the official Google Nest SDM API, even when your alarms appear in the Google Home app. This integration therefore uses the Nest web authentication flow.\n\nRecommended: run `python scripts/nest_protect_cookie_wizard.py` on your computer. The wizard opens a local browser, watches the Network requests, and prints the Issue Token URL and Cookie header you need here.\n\nManual fallback: use your browser Developer Tools Network tab on `https://home.nest.com`. Copy the full `issueToken` request URL and the full Cookie header from the `oauth2/iframe` request. Do not use `document.cookie`.\n\nPaste the Issue Token URL in the first field and the Cookie header in the second field. You may also paste both values into the first field on separate lines.",
         "data": {
-          "issue_token": "URL du jeton d'émission",
-          "cookies": "Cookies (optionnel si collé ci-dessus)"
+          "issue_token": "Issue Token URL",
+          "cookies": "Cookie header"
         },
         "data_description": {
-          "issue_token": "Collez depuis le presse-papiers (commence par https://accounts.google.com/o/oauth2/iframerpc). Vous pouvez coller le jeton et les cookies ici séparés par un saut de ligne.",
-          "cookies": "Collez depuis le presse-papiers (laissez vide si déjà collé ci-dessus avec le jeton)"
-        }
-      },
-      "account_link": {
-        "title": "Connectez votre compte Nest",
-        "description": "Suivez ces étapes pour obtenir vos identifiants:\n\n1. Ouvrez une fenêtre de navigation **privée/Incognito**\n2. Activez les **cookies tiers** dans les paramètres du navigateur\n3. Allez sur [home.nest.com](https://home.nest.com) et connectez-vous avec Google\n4. Ouvrez les **Outils de développement** (F12) → Onglet **Network** → Cochez **Preserve Log**\n5. Dans le champ de filtre, tapez `issueToken` et copiez l'**URL de requête** complète\n6. Dans le champ de filtre, tapez `oauth2/iframe`, cliquez sur la dernière requête et copiez la valeur complète de l'en-tête **Cookie**\n\n⚠️ Ne vous déconnectez pas de home.nest.com après avoir copié les identifiants",
-        "data": {
-          "issue_token": "URL du jeton d'émission",
-          "cookies": "Cookies"
-        },
-        "data_description": {
-          "issue_token": "URL complète commençant par https://accounts.google.com/o/oauth2/iframerpc?action=issueToken...",
-          "cookies": "Chaîne complète des cookies de la requête oauth2/iframe"
+          "issue_token": "Full URL beginning with https://accounts.google.com/o/oauth2/iframerpc. You can paste both values here separated by a newline.",
+          "cookies": "Full Cookie request header from the oauth2/iframe Network request. Leave empty if already pasted above."
         }
       }
-    }
-  },
-  "options": {
-    "abort": {
-      "already_configured": "Le compte est déjà configuré"
     },
     "error": {
-      "cannot_connect": "Échec de connexion",
-      "invalid_auth": "Authentification invalide",
-      "unknown": "Erreur inattendue"
+      "cannot_connect": "Connection failed",
+      "network_timeout": "The Google/Nest request timed out. Try again after checking your network connection.",
+      "authentication_rejected": "Google/Nest rejected these credentials. Run the wizard again and do not log out of home.nest.com afterward.",
+      "missing_issue_token": "Issue Token URL is required.",
+      "invalid_issue_token": "Invalid Issue Token URL. Paste the full issueToken request URL, including all query parameters.",
+      "missing_cookie_header": "Cookie header is required.",
+      "incomplete_cookie_header": "Cookie header looks incomplete. Copy the full Cookie header from the oauth2/iframe Network request.",
+      "no_devices_found": "Authentication succeeded, but no Nest Protect devices were found on this account.",
+      "unexpected_response": "Nest returned an unexpected response. Try again or open an issue with redacted diagnostics.",
+      "unknown": "Unexpected error"
     },
-    "step": {
-      "account_link": {
-        "description": "Veuillez récupérer votre jeton d'émission et vos cookies en suivant les instructions du fichier README d'intégration et collez-les ci-dessous.",
-        "data": {
-          "issue_token": "URL du jeton d'émission",
-          "cookies": "Cookies"
-        }
-      }
+    "abort": {
+      "already_configured": "Account is already configured",
+      "reauth_successful": "Re-authentication successful"
     }
   },
   "entity": {
     "select": {
       "night_light_brightness": {
-        "name": "Luminosité de la veilleuse",
+        "name": "Night Light Brightness",
         "state": {
-          "low": "Faible",
-          "medium": "Moyen",
-          "high": "Élevé"
+          "low": "Low",
+          "medium": "Medium",
+          "high": "High"
         }
       }
     }
