@@ -1,5 +1,5 @@
 {
-    "name": "Nest Protect",
+    "name": "Nest Protect (Jastroger Fork)",
     "domains": [
         "binary_sensor",
         "sensor",
