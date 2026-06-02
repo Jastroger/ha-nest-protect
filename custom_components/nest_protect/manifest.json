@@ -1,16 +1,16 @@
 {
   "domain": "nest_protect",
   "name": "Nest Protect",
-  "codeowners": ["@imicknl"],
+  "codeowners": ["@Jastroger"],
   "config_flow": true,
   "dhcp": [
     {
       "macaddress": "CCA7C1*"
     }
   ],
-  "documentation": "https://github.com/imicknl/ha-nest-protect",
+  "documentation": "https://github.com/Jastroger/ha-nest-protect",
   "iot_class": "cloud_push",
-  "issue_tracker": "https://github.com/imicknl/ha-nest-protect/issues",
+  "issue_tracker": "https://github.com/Jastroger/ha-nest-protect/issues",
   "requirements": [],
   "version": "0.4.2"
 }

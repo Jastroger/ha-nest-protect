@@ -1,184 +1,101 @@
-# Nest Protect for Home Assistant
+![Detail page of a Nest Protect device](https://github.com/iMicknl/ha-nest-protect/assets/1424596/8fd15c57-2a9c-4c20-8c8f-65a526573d1e)
 
-This custom integration exposes Google Nest Protect smoke and CO detectors in Home Assistant.
+[![hacs_badge](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
+[![GitHub release](https://img.shields.io/github/release/Jastroger/ha-nest-protect.svg)](https://GitHub.com/Jastroger/ha-nest-protect/releases/)
+[![HA integration usage](https://img.shields.io/badge/dynamic/json?color=41BDF5&logo=home-assistant&label=integration%20usage&suffix=%20installs&cacheSeconds=15600&url=https://analytics.home-assistant.io/custom_integrations.json&query=$.nest_protect.total)](https://analytics.home-assistant.io/custom_integrations.json)
 
-It uses the unofficial Nest web API because Nest Protect is not exposed through the official Google Nest Device Access / SDM API. A Nest Protect can appear in the Google Home app and still not be available through the official Home Assistant Nest integration.
+# Nest Protect integration for Home Assistant
 
-## Supported Devices
+Custom component for Home Assistant to interact with Nest Protect devices via an undocumented and unofficial Nest API. Unfortunately, Google SDM doesn't support Nest Protect devices and thus the core [Nest integration](https://www.home-assistant.io/integrations/nest/) won't work for Nest Protect.
 
-- Nest Protect smoke and CO alarms
-- Wired Nest Protect occupancy, where available
-- Configuration entities such as Pathlight, Nightly Promise, Heads-Up, Steam Check, and night light brightness
+This integration will add the most important sensors of your Nest Protect device (CO, heat and smoke) and the occupancy if your device is wired (to main power). In addition, it will expose several diagnostic and configuration entities. All sensor values will be updated real-time.
 
-## Known Limitations
+## Known limitations
 
-- Only Google accounts are supported.
-- Nest Protect support depends on an unofficial Nest web authentication flow.
-- If you log out of `home.nest.com`, change your password, or Google invalidates your browser session, you may need to reauthenticate.
-- Wired occupancy can remain on for about 10 minutes because of the Nest behavior.
-- Google can change the web flow without notice.
+- Only Google Accounts are supported, there is no plan to support legacy Nest accounts
+- When Nest Protect (wired) occupancy is triggered, it will stay 'on' for 10 minutes. (API limitation)
+- Only _cookie authentication_ is supported as Google removed the API key authentication method. This means that you need to login to the Nest website at least once to generate a cookie. This cookie will be used to authenticate with the Nest API. The cookie will be stored in the Home Assistant configuration folder and will be used for future requests. If you logout from your browser or change your password, you need to reautenticate and and replace the current issue_token and cookies.
 
 ## Installation
 
+You can install this integration via [HACS](#hacs) or [manually](#manual).
+
 ### HACS
 
-1. Open HACS.
-2. Search for `Nest Protect`.
-3. Install the integration.
-4. Restart Home Assistant.
-5. Add the integration from Settings > Devices & services.
+Add this repository (`https://github.com/Jastroger/ha-nest-protect`) as a [custom repository](https://hacs.xyz/docs/faq/custom_repositories/) in HACS with the category **Integration**. Then search for the Nest Protect integration and choose install, then reboot Home Assistant. Configure the Nest Protect integration either via the integrations page or press the blue button below.
+
 
 [![Open your Home Assistant instance and start setting up a new integration.](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=nest_protect)
 
 ### Manual
 
-1. Copy `custom_components/nest_protect` into your Home Assistant `custom_components` directory.
-2. Restart Home Assistant.
-3. Add the integration from Settings > Devices & services.
+Copy the `custom_components/nest_protect` to your custom_components folder and reboot Home Assistant. Configure the Nest Protect integration either via the integrations page or press the blue button below.
 
-## Zero DevTools Setup
 
-The normal setup path is the Playwright auth wizard. Normal users should not open browser developer tools, export HAR files, inspect Network requests, search for Cookie headers, or run JavaScript snippets.
+[![Open your Home Assistant instance and start setting up a new integration.](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=nest_protect)
 
-The wizard opens a real browser, lets you sign in to Google normally, listens to local browser network traffic, and captures the two values Home Assistant needs:
+## Retrieving `issue_token` and `cookies`
 
-- Issue Token URL
-- Cookie header from the `oauth2/iframe` Network request
+(adapted from [homebridge-nest documentation](https://github.com/chrisjshull/homebridge-nest))
 
-The wizard does not use `document.cookie`, because that usually misses required Google authentication cookies. It does not read your Google password; login happens inside the browser window.
+### Option A: Playwright cookie wizard (recommended)
 
-### Run The Wizard
+The helper script in `scripts/nest_protect_cookie_wizard.py` launches a local browser with Playwright, guides you through Google login, and extracts the required values from network requests. The script runs entirely on your machine and does not send credentials to external services.
 
-From this repository:
+**Prerequisites**
 
-```bash
-python -m pip install playwright
-python -m playwright install chromium
-python scripts/nest_protect_cookie_wizard.py
+- Python 3.10+
+- Playwright installed: `pip install playwright`
+- Playwright browser binaries installed: `playwright install chromium`
+
+**Run**
+
+```
+./scripts/nest_protect_cookie_wizard.py
 ```
 
-For an extra end-to-end check before printing the final block:
+**Limitations**
 
-```bash
-python scripts/nest_protect_cookie_wizard.py --validate
+- Google 2FA prompts must be completed in the browser window.
+- You may see Google consent screens depending on your account.
+- Google anti-automation protections can occasionally block or slow the flow; retry in a fresh session if needed.
+
+### Option B: Manual browser steps
+
+The values of "issue_token" and "cookies" are specific to your Google Account. To get them, follow these steps (only needs to be done once, as long as you stay logged into your Google Account).
+
+1. Open a Chrome/Edge browser tab in Incognito Mode.
+1. Allow third-party cookies in your browser settings to prevent the Nest website from entering a redirect loop. Follow these steps:
+
+   - **In Chrome**: Go to Settings, select Privacy and Security -> Third-party cookies. Enable "Allow third-party cookies."
+   - **In Edge**: Go to Settings, select Cookies and site permissions -> Manage and delete cookies and site data. Disable "Block third-party cookies."
+
+1. Open Developer Tools (View/Developer/Developer Tools).
+1. Click on **Network** tab. Make sure 'Preserve Log' is checked.
+1. In the **Filter** box, enter `issueToken`
+1. Go to home.nest.com, and click **Sign in with Google**. Log into your account.
+1. One network call (beginning with iframerpc) will appear in the Dev Tools window. Click on it.
+1. In the Headers tab, under General, copy the entire Request URL (beginning with https://accounts.google.com). This is your _'issue_token'_ in the configuration form.
+1. In the **Filter** box, enter `oauth2/iframe`
+1. Several network calls will appear in the Dev Tools window. Click on the last iframe call.
+1. In the **Headers** tab, under **Request Headers**, copy the entire cookie (include the whole string which is several lines long and has many field/value pairs - do not include the cookie: name). This is your _'cookies'_ in the configuration form.
+1. Do not log out of home.nest.com, as this will invalidate your credentials. Just close the browser tab.
+
+## Advanced
+
+Feel free to [create an issue on GitHub](https://github.com/Jastroger/ha-nest-protect/issues/new/choose) if you find an issue or if you have a suggestion. It is always helpful to download the diagnostics information and to include debug logging.
+
+### Enable debug logging
+
+The [logger](https://www.home-assistant.io/integrations/logger/) integration lets you define the level of logging activities in Home Assistant. Turning on debug mode will show more information about unsupported devices in your logbook.
+
 ```
-
-Optional browser choices:
-
-```bash
-python scripts/nest_protect_cookie_wizard.py --browser chromium
-python scripts/nest_protect_cookie_wizard.py --browser chrome
-python scripts/nest_protect_cookie_wizard.py --browser edge
+logger:
+  default: critical
+  logs:
+    custom_components.nest_protect: debug
 ```
-
-Complete login in the browser window. When both values are captured, paste the combined block into the first field of the Home Assistant setup form.
-
-Do not log out of `home.nest.com` after capturing the values.
-
-Example block shape with fake values:
-
-```text
-NEST_PROTECT_AUTH_WIZARD_OUTPUT_V1
-issue_token=https://accounts.google.com/o/oauth2/iframerpc?action=issueToken&...
-cookies=SID=***; HSID=***; SSID=***; APISID=***; SAPISID=***
-END_NEST_PROTECT_AUTH_WIZARD_OUTPUT
-```
-
-### Manual Fallback / Troubleshooting Only
-
-Use this only if the wizard cannot run or troubleshooting needs to prove what the browser is sending. This is not the normal setup path.
-
-1. Open a private or incognito browser window.
-2. Open Developer Tools and go to the Network tab.
-3. Enable Preserve log.
-4. Go to `https://home.nest.com`.
-5. Sign in with Google.
-6. Filter for `issueToken`.
-7. Copy the full request URL beginning with `https://accounts.google.com/o/oauth2/iframerpc`.
-8. Filter for `oauth2/iframe`.
-9. Open the latest matching request.
-10. Copy the full Cookie request header.
-11. Paste both values into Home Assistant.
-
-Important: copy the Cookie request header from the Network request. Do not copy `document.cookie`.
-
-## Reauthentication
-
-If Home Assistant reports that Nest Protect authentication expired:
-
-1. Run the wizard again.
-2. Paste the new values into the reauthentication flow.
-3. Keep the browser session valid by closing the window instead of logging out.
-
-## Troubleshooting
-
-### Invalid Issue Token URL
-
-Run the wizard again and paste the complete wizard block. If using the emergency fallback, paste the complete `issueToken` request URL, including query parameters. It should begin with:
-
-```text
-https://accounts.google.com/o/oauth2/iframerpc
-```
-
-### Incomplete Cookie Header
-
-Run the wizard again and wait until the Nest web app fully loads. If using the emergency fallback, copy the full Cookie request header from the `oauth2/iframe` Network request. It should contain several Google cookie names such as `SID`, `HSID`, `SSID`, `APISID`, or `SAPISID`.
-
-### Wizard Sees oauth2 iframe But No Issue Token
-
-Keep the browser open, reload `https://home.nest.com`, and wait until the Nest web app fully loads. If it still does not capture an Issue Token URL, retry in a fresh browser context and confirm that your Google account migration is complete.
-
-### Google/Nest Authentication Rejected
-
-Run the wizard again in a fresh browser context. Do not log out after copying the credentials.
-
-### No Nest Protect Devices Found
-
-The Google account authenticated successfully, but the Nest web response did not include supported Nest Protect devices. Confirm that the same account can see the devices at `home.nest.com`.
-
-### Network Timeout
-
-Retry after checking network connectivity and DNS. Google/Nest endpoints can also be temporarily slow or unavailable.
-
-## Security Notes
-
-Treat the Issue Token URL, Cookie header, access tokens, refresh tokens, and JWTs like passwords.
-
-This repository must not contain real tokens or cookies. Diagnostics redact known secret fields. If you share logs or diagnostics, review them first.
-
-The wizard prints captured credentials because you need to paste them into Home Assistant. It masks values in status and debug output by default and does not write credential files. `--show-secrets` is intentionally unsafe and should only be used for local troubleshooting.
-
-## Development
-
-The current test dependency pin is intentionally conservative:
-
-```text
-homeassistant==2024.12.1
-```
-
-This version already requires a modern Python runtime. On Windows, some native Home Assistant dependencies may require Microsoft C++ Build Tools if prebuilt wheels are not available for your Python version.
-
-Recommended commands:
-
-```bash
-python -m pip install -r requirements_test.txt
-python -m pytest
-python -m compileall -q custom_components tests
-```
-
-No tests should call Google or Nest directly. Network access must be mocked.
-
-## Contributing
-
-Please keep changes focused and avoid speculative rewrites. In particular, do not replace this integration with the official SDM API unless Nest Protect support is proven by official documentation and working code.
-
-Useful issue reports include:
-
-- Home Assistant version
-- Integration version or commit
-- Redacted diagnostics
-- Relevant log excerpts with tokens and cookies removed
 
 ## Credits
 
-Based on research and implementation ideas from the Nest and Homebridge communities, especially `homebridge-nest`.
+Based on the research and implementation of [homebridge-nest](https://github.com/chrisjshull/homebridge-nest).
