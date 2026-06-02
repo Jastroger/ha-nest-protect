@@ -85,11 +85,16 @@ async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry):
     """Migrate old Config entries."""
     LOGGER.debug("Migrating from version %s", config_entry.version)
 
-    if config_entry.version == 1:
+    if config_entry.version < 3:
         hass.config_entries.async_update_entry(
             config_entry,
-            data={**config_entry.data, CONF_ACCOUNT_TYPE: Environment.PRODUCTION},
-            version=2,
+            data={
+                **config_entry.data,
+                CONF_ACCOUNT_TYPE: config_entry.data.get(
+                    CONF_ACCOUNT_TYPE, Environment.PRODUCTION
+                ),
+            },
+            version=3,
         )
 
     LOGGER.debug("Migration to version %s successful", config_entry.version)
@@ -105,7 +110,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     stored_access_token, stored_expires_at = _get_stored_access_token(entry)
 
     session = async_create_clientsession(hass)
-    account_type = entry.data[CONF_ACCOUNT_TYPE]
+    account_type = entry.data.get(CONF_ACCOUNT_TYPE, Environment.PRODUCTION)
     client = NestClient(session=session, environment=NEST_ENVIRONMENTS[account_type])
 
     auth = None

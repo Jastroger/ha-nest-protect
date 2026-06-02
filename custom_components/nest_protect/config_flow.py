@@ -368,6 +368,8 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             self.hass.config_entries.async_get_entry(self.context["entry_id"]),
         )
 
-        self._default_account_type = self._config_entry.data[CONF_ACCOUNT_TYPE]
+        self._default_account_type = self._config_entry.data.get(
+            CONF_ACCOUNT_TYPE, Environment.PRODUCTION
+        )
 
         return await self.async_step_account_link(user_input)
