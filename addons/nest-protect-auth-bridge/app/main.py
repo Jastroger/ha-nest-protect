@@ -3,16 +3,22 @@
 from __future__ import annotations
 
 import logging
+import os
+import shutil
+import tempfile
 import threading
+import time
 from typing import Any
 from urllib.parse import urlsplit
 
 from flask import Flask, jsonify, redirect, render_template, request
-from playwright.sync_api import Error, sync_playwright
 import requests
 
 NEST_LOGIN_URL = "https://home.nest.com"
+DEFAULT_CAPTURE_TIMEOUT_SECONDS = 600
 
+BROWSER_STARTING = "browser_starting"
+BROWSER_READY = "browser_ready"
 WAITING_FOR_LOGIN = "waiting_for_login"
 GOOGLE_LOGIN_SEEN = "google_login_seen"
 OAUTH_IFRAME_SEEN = "oauth_iframe_seen"
@@ -21,6 +27,7 @@ COOKIE_HEADER_CAPTURED = "cookie_header_captured"
 POSTING = "posting_to_home_assistant"
 DONE = "done"
 FAILED = "failed"
+TIMEOUT = "timeout"
 
 LOGGER = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -38,7 +45,16 @@ state: dict[str, Any] = {
     "cookies": "",
     "error": "",
     "running": False,
+    "cancel_requested": False,
 }
+
+
+class CaptureTimeoutError(RuntimeError):
+    """Raised when auth bridge capture exceeds timeout."""
+
+
+class CaptureCancelledError(RuntimeError):
+    """Raised when capture is cancelled by the user."""
 
 
 def _mask_secret(value: str) -> str:
@@ -54,6 +70,10 @@ def _set_state(**kwargs: Any) -> None:
         state.update(kwargs)
 
 
+def _clear_sensitive_state() -> None:
+    _set_state(session_id="", secret="", callback_url="", issue_token="", cookies="")
+
+
 def _is_issue_token_url(url: str) -> bool:
     return (
         url.startswith("https://accounts.google.com/o/oauth2/iframerpc")
@@ -61,31 +81,101 @@ def _is_issue_token_url(url: str) -> bool:
     )
 
 
+def _is_valid_cookie_header(cookies: str) -> bool:
+    if len(cookies) <= 100:
+        return False
+    markers = ("APISID=", "SAPISID=", "HSID=", "SSID=", "SID=")
+    return any(marker in cookies for marker in markers)
+
+
+def _is_valid_callback_url(callback_url: str) -> bool:
+    parsed = urlsplit(callback_url)
+    return bool(parsed.scheme in {"http", "https"} and parsed.netloc and parsed.path)
+
+
+def _extract_launch_values() -> tuple[str, str, str]:
+    session_id = (request.form.get("session_id") or request.args.get("session_id") or "").strip()
+    secret = (request.form.get("secret") or request.args.get("secret") or "").strip()
+    callback_url = (
+        request.form.get("callback_url") or request.args.get("callback_url") or ""
+    ).strip()
+    return session_id, secret, callback_url
+
+
+def _build_callback_request(callback_url: str) -> tuple[str, dict[str, str]]:
+    headers: dict[str, str] = {}
+    parsed = urlsplit(callback_url)
+    if parsed.hostname == "supervisor" and parsed.path.startswith("/core/api/"):
+        token = os.environ.get("SUPERVISOR_TOKEN", "")
+        if not token:
+            raise RuntimeError("missing_supervisor_token")
+        headers["Authorization"] = "Bearer " + token
+    return callback_url, headers
+
+
+def _wait_for_capture(timeout_seconds: float, poll_interval_seconds: float = 0.25) -> tuple[str, str]:
+    deadline = time.monotonic() + timeout_seconds
+    while True:
+        with state_lock:
+            issue_token = state.get("issue_token", "")
+            cookies = state.get("cookies", "")
+            cancel_requested = bool(state.get("cancel_requested"))
+
+        if cancel_requested:
+            raise CaptureCancelledError("cancelled")
+
+        if issue_token and cookies and _is_issue_token_url(issue_token) and _is_valid_cookie_header(cookies):
+            return issue_token, cookies
+
+        if time.monotonic() >= deadline:
+            raise CaptureTimeoutError("capture_timeout")
+
+        time.sleep(poll_interval_seconds)
+
+
 def _capture_flow(session_id: str, secret: str, callback_url: str) -> None:
     _set_state(
-        status=WAITING_FOR_LOGIN,
-        message="Open browser and sign in to Google/Nest",
+        status=BROWSER_STARTING,
+        message="Starting browser",
         issue_token="",
         cookies="",
         error="",
         running=True,
+        cancel_requested=False,
     )
 
+    profile_dir = tempfile.mkdtemp(prefix="nest-auth-bridge-")
+    context = None
+
     try:
+        from playwright.sync_api import Error, sync_playwright
+
+        timeout_seconds = int(
+            os.environ.get("AUTH_BRIDGE_TIMEOUT_SECONDS", DEFAULT_CAPTURE_TIMEOUT_SECONDS)
+        )
+        chromium_path = os.environ.get("CHROMIUM_EXECUTABLE", "/usr/bin/chromium-browser")
+
         with sync_playwright() as playwright:
-            browser = playwright.chromium.launch(headless=False)
-            context = browser.new_context()
-            page = context.new_page()
+            context = playwright.chromium.launch_persistent_context(
+                profile_dir,
+                headless=False,
+                executable_path=chromium_path,
+                viewport={"width": 1280, "height": 800},
+                args=["--no-sandbox", "--disable-dev-shm-usage"],
+            )
+            _set_state(status=BROWSER_READY, message="Browser ready")
+
+            page = context.pages[0] if context.pages else context.new_page()
 
             def handle_request(playwright_request: Any) -> None:
                 request_url = playwright_request.url
                 hostname = (urlsplit(request_url).hostname or "").lower()
                 if hostname == "accounts.google.com":
-                    _set_state(status=GOOGLE_LOGIN_SEEN)
+                    _set_state(status=GOOGLE_LOGIN_SEEN, message="Google login detected")
                 if "oauth2/iframe" in request_url:
-                    _set_state(status=OAUTH_IFRAME_SEEN)
+                    _set_state(status=OAUTH_IFRAME_SEEN, message="OAuth iframe request detected")
                     cookie_header = playwright_request.headers.get("cookie")
-                    if cookie_header:
+                    if cookie_header and _is_valid_cookie_header(cookie_header):
                         _set_state(
                             status=COOKIE_HEADER_CAPTURED,
                             cookies=cookie_header,
@@ -100,23 +190,20 @@ def _capture_flow(session_id: str, secret: str, callback_url: str) -> None:
 
             page.on("request", handle_request)
             page.goto(NEST_LOGIN_URL, wait_until="domcontentloaded")
+            _set_state(status=WAITING_FOR_LOGIN, message="Complete Google/Nest sign-in")
 
-            while True:
-                with state_lock:
-                    issue_token = state["issue_token"]
-                    cookies = state["cookies"]
-                if issue_token and cookies:
-                    break
-                page.wait_for_timeout(500)
+            issue_token, cookies = _wait_for_capture(timeout_seconds)
 
+            callback_post_url, callback_headers = _build_callback_request(callback_url)
             _set_state(status=POSTING, message="Posting credentials to Home Assistant")
             response = requests.post(
-                callback_url,
+                callback_post_url,
                 json={
                     "secret": secret,
                     "issue_token": issue_token,
                     "cookies": cookies,
                 },
+                headers=callback_headers,
                 timeout=30,
             )
             if response.status_code >= 400:
@@ -127,13 +214,21 @@ def _capture_flow(session_id: str, secret: str, callback_url: str) -> None:
                 )
             else:
                 _set_state(status=DONE, message="Done")
-
-            context.close()
-            browser.close()
-    except (Error, requests.RequestException, RuntimeError):
+    except CaptureTimeoutError:
+        _set_state(status=TIMEOUT, message="Timed out waiting for login", error="timeout")
+    except CaptureCancelledError:
+        _set_state(status=FAILED, message="Cancelled", error="")
+    except Exception:
         LOGGER.warning("Auth bridge failed")
         _set_state(status=FAILED, message="Failed", error="request_failed")
     finally:
+        if context is not None:
+            try:
+                context.close()
+            except Exception:
+                LOGGER.debug("Failed closing browser context", exc_info=True)
+        shutil.rmtree(profile_dir, ignore_errors=True)
+        _clear_sensitive_state()
         _set_state(running=False)
 
 
@@ -142,20 +237,22 @@ def index() -> str:
     return render_template("index.html")
 
 
-@app.post("/start")
+@app.route("/start", methods=["POST", "GET"])
 def start() -> Any:
-    session_id = (request.form.get("session_id") or request.args.get("session_id") or "").strip()
-    secret = (request.form.get("secret") or request.args.get("secret") or "").strip()
-    callback_url = (
-        request.form.get("callback_url") or request.args.get("callback_url") or ""
-    ).strip()
+    session_id, secret, callback_url = _extract_launch_values()
 
     if not session_id or not secret or not callback_url:
         _set_state(status=FAILED, message="Missing required launch values")
         return redirect("/")
 
-    if not callback_url.startswith(("http://", "https://", "/")):
+    if not _is_valid_callback_url(callback_url):
         _set_state(status=FAILED, message="Invalid callback URL")
+        return redirect("/")
+
+    try:
+        _build_callback_request(callback_url)
+    except RuntimeError:
+        _set_state(status=FAILED, message="Missing Supervisor token", error="missing_supervisor_token")
         return redirect("/")
 
     with state_lock:
@@ -166,9 +263,10 @@ def start() -> Any:
         session_id=session_id,
         secret=secret,
         callback_url=callback_url,
-        status=WAITING_FOR_LOGIN,
+        status=BROWSER_STARTING,
         message="Starting browser",
         error="",
+        cancel_requested=False,
     )
 
     thread = threading.Thread(
@@ -181,6 +279,32 @@ def start() -> Any:
     return redirect("/")
 
 
+@app.post("/cancel")
+def cancel() -> Any:
+    with state_lock:
+        running = bool(state.get("running"))
+    if running:
+        _set_state(cancel_requested=True, message="Cancelling login", error="")
+    else:
+        _set_state(cancel_requested=False)
+    return redirect("/")
+
+
+@app.post("/reset")
+def reset() -> Any:
+    _set_state(
+        status=WAITING_FOR_LOGIN,
+        message="Idle",
+        issue_token="",
+        cookies="",
+        error="",
+        running=False,
+        cancel_requested=False,
+    )
+    _clear_sensitive_state()
+    return redirect("/")
+
+
 @app.get("/status")
 def status() -> Any:
     with state_lock:
@@ -189,14 +313,10 @@ def status() -> Any:
             "message": state["message"],
             "running": state["running"],
             "session_id": _mask_secret(state["session_id"]),
-            "secret": _mask_secret(state["secret"]),
-            "callback_url": _mask_secret(state["callback_url"]),
-            "issue_token": _mask_secret(state["issue_token"]),
-            "cookies": _mask_secret(state["cookies"]),
             "error": _mask_secret(state["error"]),
         }
     return jsonify(response)
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8099)
+    app.run(host="0.0.0.0", port=8100)

@@ -41,8 +41,9 @@ Primary path (normal users):
 1. Install this integration.
 1. Install the **Nest Protect Auth Bridge** add-on.
 1. Add the Nest Protect integration in Home Assistant.
-1. Start login in the integration flow.
-1. Complete Google/Nest sign-in in the Auth Bridge add-on browser flow.
+1. Start login in the integration flow (it provides a single launch URL).
+1. Open that launch URL to start the add-on Ingress page with one-time session parameters.
+1. Complete Google/Nest sign-in in the visible browser embedded in the Auth Bridge add-on UI.
 1. Return to Home Assistant and click **Submit** / **Continue after login** if needed.
 1. Setup completes automatically once callback validation succeeds.
 
@@ -53,7 +54,7 @@ The product goal is zero DevTools setup: normal users should not open browser de
 The integration now has a callback endpoint for an add-on or companion app:
 
 ```text
-POST /api/nest_protect/auth_bridge/{session_id}
+POST http://supervisor/core/api/nest_protect/auth_bridge/{session_id}
 ```
 
 Payload:
@@ -66,7 +67,7 @@ Payload:
 }
 ```
 
-The `session_id` and one-time secret are created by the Home Assistant config flow. The callback stores the result only when the secret matches. The config flow then validates the credentials and finishes setup.
+The `session_id` and one-time secret are created by the Home Assistant config flow and carried in the one-click launch URL. Add-ons should call the Supervisor/Core API callback with the Supervisor token. The callback stores the result only when the secret matches. The config flow then validates the credentials and finishes setup.
 
 ### Manual Fallback / Troubleshooting Only
 

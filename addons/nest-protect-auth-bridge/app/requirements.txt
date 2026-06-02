@@ -1,3 +1,4 @@
 flask==3.1.1
 playwright==1.53.0
 requests==2.32.3
+websockify==0.13.0
