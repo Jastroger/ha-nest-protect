@@ -215,160 +215,116 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return unload_ok
 
 
-def _register_subscribe_task(
-    hass: HomeAssistant, entry: ConfigEntry, data: FirstDataAPIResponse
-) -> asyncio.Task | None:
-    """Create a new subscription task and update the reference."""
-    # Check if entry is still loaded before creating new task
-    if entry.entry_id not in hass.data.get(DOMAIN, {}):
-        return None
-
-    entry_data: HomeAssistantNestProtectData = hass.data[DOMAIN][entry.entry_id]
-    task = asyncio.create_task(_async_subscribe_for_data(hass, entry, data))
-    entry_data.subscription_task = task
-    return task
-
-
 async def _async_subscribe_for_data(
     hass: HomeAssistant, entry: ConfigEntry, data: FirstDataAPIResponse
 ):
     """Subscribe for new data."""
-    # Check if entry is still loaded
-    if entry.entry_id not in hass.data.get(DOMAIN, {}):
-        return
+    while entry.entry_id in hass.data.get(DOMAIN, {}):
+        entry_data: HomeAssistantNestProtectData = hass.data[DOMAIN][entry.entry_id]
 
-    entry_data: HomeAssistantNestProtectData = hass.data[DOMAIN][entry.entry_id]
-
-    try:
-        # Check for cancellation early to avoid creating orphaned tasks
-        # if the entry is being unloaded
-        await asyncio.sleep(0)
-        # TODO move refresh token logic to client
-        if (
-            not entry_data.client.nest_session
-            or entry_data.client.nest_session.is_expired()
-        ):
-            LOGGER.debug("Subscriber: authenticate for new Nest session")
-
-        if not entry_data.client.auth or entry_data.client.auth.is_expired():
-            LOGGER.debug("Subscriber: retrieving new Google access token")
-            auth = await entry_data.client.get_access_token()
-            entry_data.client.nest_session = await entry_data.client.authenticate(
-                auth.access_token
+        try:
+            await _async_subscribe_once(hass, entry_data, data)
+        except ServerDisconnectedError:
+            LOGGER.debug("Subscriber: server disconnected.")
+            await asyncio.sleep(5)
+        except asyncio.exceptions.TimeoutError:
+            LOGGER.debug("Subscriber: session timed out.")
+            await asyncio.sleep(5)
+        except ClientConnectorError:
+            LOGGER.debug("Subscriber: cannot connect to host.")
+            await asyncio.sleep(30)
+        except EmptyResponseException:
+            LOGGER.debug("Subscriber: Nest Service sent empty response.")
+            await asyncio.sleep(5)
+        except NotAuthenticatedException:
+            LOGGER.debug("Subscriber: 401 exception.")
+            await entry_data.client.get_access_token()
+            await entry_data.client.authenticate(entry_data.client.auth.access_token)
+        except BadCredentialsException:
+            LOGGER.debug(
+                "Bad credentials detected. Please re-authenticate the Nest Protect integration."
             )
-
-        # Subscribe to Google Nest subscribe endpoint
-        result = await entry_data.client.subscribe_for_data(
-            entry_data.client.nest_session.access_token,
-            entry_data.client.nest_session.userid,
-            data.service_urls["urls"]["transport_url"],
-            data.updated_buckets,
-        )
-
-        # TODO write this data away in a better way, best would be to directly model API responses in client
-        for bucket in result["objects"]:
-            key = bucket["object_key"]
-
-            # Nest Protect
-            if key.startswith("topaz."):
-                topaz = TopazBucket(**bucket)
-                entry_data.devices[key] = topaz
-
-                # TODO investigate if we want to use dispatcher, or get data from entry data in sensors
-                async_dispatcher_send(hass, key, topaz)
-
-            # Areas
-            if key.startswith("where."):
-                bucket_value = Bucket(**bucket).value
-
-                for area in bucket_value["wheres"]:
-                    entry_data.areas[area["where_id"]] = area["name"]
-
-            # Temperature Sensors
-            if key.startswith("kryptonite."):
-                kryptonite = Bucket(**bucket)
-                entry_data.devices[key] = kryptonite
-
-                async_dispatcher_send(hass, key, kryptonite)
-
-        # Update buckets with new data, to only receive new updates
-        buckets = {d["object_key"]: d for d in result["objects"]}
-
-        LOGGER.debug(buckets)
-
-        objects = [
-            dict(vars(b), **buckets.get(b.object_key, {})) for b in data.updated_buckets
-        ]
-
-        data.updated_buckets = [
-            Bucket(
-                object_key=bucket["object_key"],
-                object_revision=bucket["object_revision"],
-                object_timestamp=bucket["object_timestamp"],
-                value=bucket["value"],
-                type=bucket["type"],
+            hass.config_entries.async_start_reauth(entry)
+            return
+        except NestServiceException:
+            LOGGER.debug("Subscriber: Nest Service error. Updates paused for 2 minutes.")
+            await asyncio.sleep(60 * 2)
+        except PynestException:
+            LOGGER.exception(
+                "Unknown pynest exception. Please create an issue on GitHub with your logfile. Updates paused for 1 minute."
             )
-            for bucket in objects
-        ]
+            await asyncio.sleep(60)
+        except asyncio.CancelledError:
+            LOGGER.debug("Subscriber: task cancelled, stopping subscription.")
+            raise
+        except Exception:  # pylint: disable=broad-except
+            LOGGER.exception(
+                "Unknown exception. Please create an issue on GitHub with your logfile. Updates paused for 5 minutes."
+            )
+            await asyncio.sleep(60 * 5)
 
-        _register_subscribe_task(hass, entry, data)
-    except ServerDisconnectedError:
-        LOGGER.debug("Subscriber: server disconnected.")
-        _register_subscribe_task(hass, entry, data)
 
-    except asyncio.exceptions.TimeoutError:
-        LOGGER.debug("Subscriber: session timed out.")
-        _register_subscribe_task(hass, entry, data)
+async def _async_subscribe_once(
+    hass: HomeAssistant,
+    entry_data: HomeAssistantNestProtectData,
+    data: FirstDataAPIResponse,
+) -> None:
+    """Fetch one long-poll subscription update and apply it."""
+    await asyncio.sleep(0)
 
-    except ClientConnectorError:
-        LOGGER.debug("Subscriber: cannot connect to host.")
-        _register_subscribe_task(hass, entry, data)
+    if not entry_data.client.nest_session or entry_data.client.nest_session.is_expired():
+        LOGGER.debug("Subscriber: authenticate for new Nest session")
 
-    except EmptyResponseException:
-        LOGGER.debug("Subscriber: Nest Service sent empty response.")
-        _register_subscribe_task(hass, entry, data)
-
-    except NotAuthenticatedException:
-        LOGGER.debug("Subscriber: 401 exception.")
-        # Renewing access token
-        await entry_data.client.get_access_token()
-        await entry_data.client.authenticate(entry_data.client.auth.access_token)
-        _register_subscribe_task(hass, entry, data)
-
-    except BadCredentialsException as exception:
-        LOGGER.debug(
-            "Bad credentials detected. Please re-authenticate the Nest Protect integration."
-        )
-        raise ConfigEntryAuthFailed from exception
-
-    except NestServiceException:
-        LOGGER.debug("Subscriber: Nest Service error. Updates paused for 2 minutes.")
-
-        await asyncio.sleep(60 * 2)
-        _register_subscribe_task(hass, entry, data)
-
-    except PynestException:
-        LOGGER.exception(
-            "Unknown pynest exception. Please create an issue on GitHub with your logfile. Updates paused for 1 minute."
+    if not entry_data.client.auth or entry_data.client.auth.is_expired():
+        LOGGER.debug("Subscriber: retrieving new Google access token")
+        auth = await entry_data.client.get_access_token()
+        entry_data.client.nest_session = await entry_data.client.authenticate(
+            auth.access_token
         )
 
-        # Wait a minute before retrying
-        await asyncio.sleep(60)
-        _register_subscribe_task(hass, entry, data)
+    result = await entry_data.client.subscribe_for_data(
+        entry_data.client.nest_session.access_token,
+        entry_data.client.nest_session.userid,
+        data.service_urls["urls"]["transport_url"],
+        data.updated_buckets,
+    )
 
-    except asyncio.CancelledError:
-        # Task is being cancelled during unload; do not register a new task
-        LOGGER.debug("Subscriber: task cancelled, stopping subscription.")
-        raise
+    for bucket in result["objects"]:
+        key = bucket["object_key"]
 
-    except Exception:  # pylint: disable=broad-except
-        # Wait 5 minutes before retrying
-        await asyncio.sleep(60 * 5)
-        _register_subscribe_task(hass, entry, data)
+        if key.startswith("topaz."):
+            topaz = TopazBucket(**bucket)
+            entry_data.devices[key] = topaz
+            async_dispatcher_send(hass, key, topaz)
 
-        LOGGER.exception(
-            "Unknown exception. Please create an issue on GitHub with your logfile. Updates paused for 5 minutes."
+        if key.startswith("where."):
+            bucket_value = Bucket(**bucket).value
+
+            for area in bucket_value["wheres"]:
+                entry_data.areas[area["where_id"]] = area["name"]
+
+        if key.startswith("kryptonite."):
+            kryptonite = Bucket(**bucket)
+            entry_data.devices[key] = kryptonite
+            async_dispatcher_send(hass, key, kryptonite)
+
+    buckets = {d["object_key"]: d for d in result["objects"]}
+    LOGGER.debug(buckets)
+
+    objects = [
+        dict(vars(b), **buckets.get(b.object_key, {})) for b in data.updated_buckets
+    ]
+
+    data.updated_buckets = [
+        Bucket(
+            object_key=bucket["object_key"],
+            object_revision=bucket["object_revision"],
+            object_timestamp=bucket["object_timestamp"],
+            value=bucket["value"],
+            type=bucket["type"],
         )
+        for bucket in objects
+    ]
 
 
 async def async_remove_config_entry_device(
