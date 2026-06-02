@@ -9,6 +9,8 @@ import aiohttp
 from homeassistant.config_entries import ConfigEntryState
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
+from custom_components.nest_protect import _is_access_token_valid
+
 from .conftest import ComponentSetup
 
 
@@ -152,3 +154,13 @@ async def test_authenticate_failure_with_cookies(
         await component_setup_with_cookies()
 
     assert config_entry_with_cookies.state is ConfigEntryState.SETUP_RETRY
+
+
+def test_is_access_token_valid_has_safety_margin():
+    """Test access token validity requires a two-minute safety margin."""
+    assert not _is_access_token_valid(
+        datetime.datetime.now() + datetime.timedelta(seconds=90)
+    )
+    assert _is_access_token_valid(
+        datetime.datetime.now() + datetime.timedelta(minutes=5)
+    )

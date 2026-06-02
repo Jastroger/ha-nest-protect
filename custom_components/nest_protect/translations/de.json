@@ -8,7 +8,7 @@
       },
       "auth_bridge_wait": {
         "title": "Warte auf Nest Protect Anmeldung",
-        "description": "Authentifizierungssitzung `{auth_bridge_session}` wartet auf den Callback der Auth Bridge.\n\nWenn die Auth Bridge die Google/Nest-Anmeldung abgeschlossen hat, validiert Home Assistant das Ergebnis und beendet die Einrichtung.\n\nNutze den Fallback nur zur Fehlersuche.",
+        "description": "Authentication session `{auth_bridge_session}` is waiting for the Auth Bridge callback.\\n\\nLaunch URL for add-on/companion: `{auth_bridge_launch_url}`\\nLaunch data (JSON): `{auth_bridge_launch_data}`\\n\\nIf this page does not auto-refresh after login, click Submit to continue after login.\\n\\nUse fallback only for troubleshooting.",
         "data": {
           "fallback": "Manuellen Fallback verwenden"
         }

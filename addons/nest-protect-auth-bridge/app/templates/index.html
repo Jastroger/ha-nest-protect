@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Nest Protect Auth Bridge</title>
+    <style>
+      body { font-family: sans-serif; margin: 1.5rem; }
+      code { background: #f3f3f3; padding: 0.1rem 0.3rem; }
+      input { width: 100%; margin-bottom: 0.6rem; }
+      .status { margin-top: 1rem; }
+    </style>
+  </head>
+  <body>
+    <h1>Nest Protect Auth Bridge</h1>
+    <p>This helper launches a browser and captures only the required issueToken URL and Cookie header.</p>
+    <form action="/start" method="post">
+      <label>Session ID</label>
+      <input name="session_id" required>
+      <label>Secret</label>
+      <input name="secret" required>
+      <label>Home Assistant callback URL</label>
+      <input name="callback_url" required>
+      <button type="submit">Start Login</button>
+    </form>
+
+    <div class="status">
+      <p><strong>Status:</strong> <code id="status">waiting_for_login</code></p>
+      <p><strong>Message:</strong> <span id="message"></span></p>
+      <p><strong>Session:</strong> <code id="session"></code></p>
+      <p><strong>Issue token:</strong> <code id="issue_token"></code></p>
+      <p><strong>Cookies:</strong> <code id="cookies"></code></p>
+      <p><strong>Error:</strong> <code id="error"></code></p>
+    </div>
+
+    <script>
+      async function pollStatus() {
+        const response = await fetch('/status');
+        const data = await response.json();
+        document.getElementById('status').textContent = data.status;
+        document.getElementById('message').textContent = data.message || '';
+        document.getElementById('session').textContent = data.session_id || '';
+        document.getElementById('issue_token').textContent = data.issue_token || '';
+        document.getElementById('cookies').textContent = data.cookies || '';
+        document.getElementById('error').textContent = data.error || '';
+      }
+
+      pollStatus();
+      setInterval(pollStatus, 1000);
+    </script>
+  </body>
+</html>
