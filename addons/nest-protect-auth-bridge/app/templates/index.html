@@ -21,13 +21,13 @@
     </p>
 
     <div class="controls">
-      <form action="/start" method="post" id="start-form">
+      <form action="start" method="post" id="start-form">
         <button type="submit">Start Login</button>
       </form>
-      <form action="/cancel" method="post">
+      <form action="cancel" method="post">
         <button type="submit">Cancel</button>
       </form>
-      <form action="/reset" method="post">
+      <form action="reset" method="post">
         <button type="submit">Reset</button>
       </form>
     </div>
@@ -40,13 +40,20 @@
     </div>
 
     <iframe
+      id="vnc-frame"
       title="Nest login browser"
-      src="/novnc/vnc.html?autoconnect=true&resize=scale&view_only=false&show_dot=true&path=websockify"
       allow="clipboard-read; clipboard-write"
     ></iframe>
 
     <script>
+      // Build relative paths based on current location so the UI works behind ingress.
+      const basePath = window.location.pathname.replace(/[^/]*$/, '');
+      const websockifyPath = basePath.replace(/^\//, '') + 'websockify';
+      document.getElementById('vnc-frame').src =
+        'novnc/vnc.html?autoconnect=true&resize=scale&view_only=false&show_dot=true&path=' + websockifyPath;
+
       const params = new URLSearchParams(window.location.search);
+      const sessionId = params.get('session_id') || '';
       const hasLaunchValues = ['session_id', 'secret', 'callback_url'].every((key) => {
         const value = params.get(key);
         return value && value.trim().length > 0;
@@ -62,14 +69,15 @@
           form.appendChild(input);
         });
 
-        if (!sessionStorage.getItem('nest_auth_bridge_auto_started')) {
-          sessionStorage.setItem('nest_auth_bridge_auto_started', '1');
+        const autoStartKey = 'nest_auth_bridge_auto_started_' + sessionId;
+        if (!sessionStorage.getItem(autoStartKey)) {
+          sessionStorage.setItem(autoStartKey, '1');
           form.submit();
         }
       }
 
       async function pollStatus() {
-        const response = await fetch('/status');
+        const response = await fetch('status');
         const data = await response.json();
         document.getElementById('status').textContent = data.status;
         document.getElementById('message').textContent = data.message || '';

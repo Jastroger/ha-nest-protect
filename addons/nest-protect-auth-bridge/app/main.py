@@ -172,8 +172,6 @@ def _capture_flow(session_id: str, secret: str, callback_url: str) -> None:
                 hostname = (urlsplit(request_url).hostname or "").lower()
                 if hostname == "accounts.google.com":
                     _set_state(status=GOOGLE_LOGIN_SEEN, message="Google login detected")
-                if "oauth2/iframe" in request_url:
-                    _set_state(status=OAUTH_IFRAME_SEEN, message="OAuth iframe request detected")
                     cookie_header = playwright_request.headers.get("cookie")
                     if cookie_header and _is_valid_cookie_header(cookie_header):
                         _set_state(
@@ -181,6 +179,8 @@ def _capture_flow(session_id: str, secret: str, callback_url: str) -> None:
                             cookies=cookie_header,
                             message="Cookie header captured",
                         )
+                if "oauth2/iframe" in request_url:
+                    _set_state(status=OAUTH_IFRAME_SEEN, message="OAuth iframe request detected")
                 if _is_issue_token_url(request_url):
                     _set_state(
                         status=ISSUE_TOKEN_CAPTURED,
@@ -206,11 +206,15 @@ def _capture_flow(session_id: str, secret: str, callback_url: str) -> None:
                 headers=callback_headers,
                 timeout=30,
             )
-            if response.status_code >= 400:
+            try:
+                resp_json = response.json()
+            except Exception:
+                resp_json = None
+            if not isinstance(resp_json, dict) or resp_json.get("ok") is not True:
                 _set_state(
                     status=FAILED,
                     message="Home Assistant callback failed",
-                    error=f"HTTP {response.status_code}",
+                    error="callback_rejected",
                 )
             else:
                 _set_state(status=DONE, message="Done")
@@ -243,21 +247,21 @@ def start() -> Any:
 
     if not session_id or not secret or not callback_url:
         _set_state(status=FAILED, message="Missing required launch values")
-        return redirect("/")
+        return redirect("./")
 
     if not _is_valid_callback_url(callback_url):
         _set_state(status=FAILED, message="Invalid callback URL")
-        return redirect("/")
+        return redirect("./")
 
     try:
         _build_callback_request(callback_url)
     except RuntimeError:
         _set_state(status=FAILED, message="Missing Supervisor token", error="missing_supervisor_token")
-        return redirect("/")
+        return redirect("./")
 
     with state_lock:
         if state.get("running"):
-            return redirect("/")
+            return redirect("./")
 
     _set_state(
         session_id=session_id,
@@ -276,7 +280,7 @@ def start() -> Any:
     )
     thread.start()
 
-    return redirect("/")
+    return redirect("./")
 
 
 @app.post("/cancel")
@@ -287,7 +291,7 @@ def cancel() -> Any:
         _set_state(cancel_requested=True, message="Cancelling login", error="")
     else:
         _set_state(cancel_requested=False)
-    return redirect("/")
+    return redirect("./")
 
 
 @app.post("/reset")
@@ -302,7 +306,7 @@ def reset() -> Any:
         cancel_requested=False,
     )
     _clear_sensitive_state()
-    return redirect("/")
+    return redirect("./")
 
 
 @app.get("/status")
