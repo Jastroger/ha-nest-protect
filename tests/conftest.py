@@ -6,6 +6,7 @@ from typing import TypeVar
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
 from homeassistant.setup import async_setup_component
+import pycares
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
@@ -26,6 +27,14 @@ COOKIES = "some-cookies"
 def auto_enable_custom_integrations(enable_custom_integrations) -> None:
     """Enable custom integration."""
     yield
+
+
+@pytest.fixture(scope="session", autouse=True)
+def prime_pycares_thread() -> YieldFixture[None]:
+    """Prime pycares resolver thread once for stable cleanup assertions."""
+    channel = pycares.Channel()
+    yield
+    channel.close()
 
 
 @pytest.fixture

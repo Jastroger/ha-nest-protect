@@ -36,28 +36,17 @@ Copy the `custom_components/nest_protect` to your custom_components folder and r
 
 ## Authentication Setup
 
+Primary path (normal users):
+
+1. Install this integration.
+1. Install the **Nest Protect Auth Bridge** add-on.
+1. Add the Nest Protect integration in Home Assistant.
+1. Start login in the integration flow.
+1. Complete Google/Nest sign-in in the Auth Bridge add-on browser flow.
+1. Return to Home Assistant and click **Submit** / **Continue after login** if needed.
+1. Setup completes automatically once callback validation succeeds.
+
 The product goal is zero DevTools setup: normal users should not open browser developer tools, export HAR files, inspect Network requests, search for Cookie headers, or run JavaScript snippets.
-
-There is an important implementation constraint: a Home Assistant custom integration cannot read Google/Nest request headers from the user's browser. Browser security correctly prevents that. The config flow can accept an authentication helper output block, but the helper that captures Google browser traffic must run as an accessible companion app, browser extension, or Home Assistant add-on/Ingress app.
-
-The config flow accepts a block shaped like this, using fake masked values:
-
-```text
-NEST_PROTECT_AUTH_WIZARD_OUTPUT_V1
-issue_token=https://accounts.google.com/o/oauth2/iframerpc?action=issueToken&...
-cookies=SID=***; HSID=***; SSID=***; APISID=***; SAPISID=***
-END_NEST_PROTECT_AUTH_WIZARD_OUTPUT
-```
-
-The development script at `scripts/nest_protect_cookie_wizard.py` demonstrates the capture behavior, but it is not a finished normal-user setup experience because HACS users cannot access or run repository scripts from the Home Assistant config flow.
-
-A true zero-DevTools user experience needs one of these implementation paths:
-
-- Home Assistant add-on with browser/Ingress UI that runs the capture helper and returns the block.
-- Small signed desktop companion app that opens a real browser and prints or copies the block.
-- Browser extension with explicit permissions to capture the required request headers.
-
-The pure Home Assistant config flow alone cannot capture the required Google request headers.
 
 ### Auth Bridge Callback Contract
 
@@ -81,7 +70,7 @@ The `session_id` and one-time secret are created by the Home Assistant config fl
 
 ### Manual Fallback / Troubleshooting Only
 
-Use this only if no authentication helper is available. These values are specific to your Google account.
+Use this only if the Auth Bridge add-on / companion flow is unavailable. These values are specific to your Google account.
 
 1. Open a Chrome/Edge browser tab in Incognito Mode.
 1. Allow third-party cookies in your browser settings to prevent the Nest website from entering a redirect loop. Follow these steps:

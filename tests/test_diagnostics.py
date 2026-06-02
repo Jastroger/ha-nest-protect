@@ -6,6 +6,7 @@ from custom_components.nest_protect.diagnostics import TO_REDACT
 def test_diagnostics_redacts_auth_secrets():
     """Test that diagnostics redacts credential and token fields."""
     assert "access_token" in TO_REDACT
+    assert "cookie" in TO_REDACT
     assert "cookies" in TO_REDACT
     assert "issue_token" in TO_REDACT
     assert "refresh_token" in TO_REDACT

@@ -25,6 +25,8 @@ from .const import (
 from .pynest.const import FULL_NEST_REQUEST
 
 TO_REDACT = [
+    "cookie",
+    "cookies",
     "access_token",
     CONF_ACCESS_TOKEN,
     CONF_ACCESS_TOKEN_EXPIRES_AT,
@@ -34,6 +36,11 @@ TO_REDACT = [
     CONF_ISSUE_TOKEN,
     CONF_REFRESH_TOKEN,
     CONF_WIZARD_OUTPUT,
+    "id_token",
+    "issue_token",
+    "jwt",
+    "refresh_token",
+    "wizard_output",
     "address_lines",
     "aux_primary_fabric_id",
     "city",
@@ -137,10 +144,3 @@ async def async_get_device_diagnostics(
     }
 
     return async_redact_data(data, TO_REDACT)
-    "cookie",
-    "cookies",
-    "id_token",
-    "issue_token",
-    "jwt",
-    "refresh_token",
-    "wizard_output",

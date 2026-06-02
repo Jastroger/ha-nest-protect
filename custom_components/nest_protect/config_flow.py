@@ -2,24 +2,29 @@
 
 from __future__ import annotations
 
+import json
 from typing import Any, cast
+from urllib.parse import urlencode
 
 from aiohttp import ClientError
 from homeassistant import config_entries
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.data_entry_flow import FlowResult
-from homeassistant.helpers.aiohttp_client import async_create_clientsession
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 import voluptuous as vol
 
 from .auth_bridge import (
     AuthBridgeSession,
+    cleanup_expired_auth_bridge_sessions,
     create_auth_bridge_session,
+    is_auth_bridge_session_expired,
+    is_valid_cookie_header,
+    is_valid_issue_token,
 )
 from .const import (
     CONF_ACCESS_TOKEN,
     CONF_ACCESS_TOKEN_EXPIRES_AT,
     CONF_ACCOUNT_TYPE,
-    CONF_AUTH_BRIDGE_SECRET,
     CONF_AUTH_BRIDGE_SESSION,
     CONF_COOKIES,
     CONF_ISSUE_TOKEN,
@@ -71,14 +76,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         The issue token URL should be from Google OAuth iframerpc endpoint
         with the issueToken action parameter.
         """
-        if not issue_token.startswith(ConfigFlow._ISSUE_TOKEN_URL_PREFIX):
-            return False
-        if "action=issueToken" not in issue_token:
-            return False
-        # Verify it looks like a proper URL with query parameters
-        if "?" not in issue_token:
-            return False
-        return True
+        return is_valid_issue_token(issue_token)
 
     @staticmethod
     def _validate_cookies(cookies: str) -> bool:
@@ -87,14 +85,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         Cookies should be substantial, contain key-value pairs,
         and include typical Google auth cookie markers.
         """
-        if len(cookies) <= 100:
-            return False
-        # Require at least one key=value pair
-        if "=" not in cookies:
-            return False
-        # Common Google auth cookie names expected in exported cookie headers
-        google_auth_markers = ("APISID=", "SAPISID=", "HSID=", "SSID=", "SID=")
-        return any(marker in cookies for marker in google_auth_markers)
+        return is_valid_cookie_header(cookies)
 
     @staticmethod
     def _split_issue_token_and_cookies(
@@ -237,7 +228,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """Validate user credentials."""
 
         environment = user_input.get(CONF_ACCOUNT_TYPE, Environment.PRODUCTION)
-        session = async_create_clientsession(self.hass)
+        session = async_get_clientsession(self.hass)
         client = NestClient(session=session, environment=NEST_ENVIRONMENTS[environment])
 
         issue_token = None
@@ -315,6 +306,12 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         """Wait for the auth bridge callback."""
+        cleanup_expired_auth_bridge_sessions(self.hass)
+        if self._auth_bridge_session and is_auth_bridge_session_expired(
+            self._auth_bridge_session
+        ):
+            self._auth_bridge_session = None
+
         if not self._auth_bridge_session:
             self._auth_bridge_session = create_auth_bridge_session(self.hass)
 
@@ -330,12 +327,28 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             }
             return await self.async_step_account_link(user_input)
 
+        callback_path = f"/api/nest_protect/auth_bridge/{session.session_id}"
+        base_url = (
+            (self.hass.config.internal_url or self.hass.config.external_url or "")
+            .rstrip("/")
+        )
+        callback_url = f"{base_url}{callback_path}" if base_url else callback_path
+        launch_data = {
+            "session_id": session.session_id,
+            "secret": session.secret,
+            "callback_url": callback_url,
+        }
+        launch_url = (
+            "nest-protect-auth-bridge://start?" + urlencode(launch_data, safe=":/")
+        )
+
         return self.async_show_form(
             step_id="auth_bridge_wait",
             data_schema=vol.Schema({vol.Optional("fallback", default=False): bool}),
             description_placeholders={
                 CONF_AUTH_BRIDGE_SESSION: session.session_id,
-                CONF_AUTH_BRIDGE_SECRET: session.secret,
+                "auth_bridge_launch_url": launch_url,
+                "auth_bridge_launch_data": json.dumps(launch_data),
             },
         )
 

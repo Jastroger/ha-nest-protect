@@ -5,19 +5,22 @@ from __future__ import annotations
 import asyncio
 import datetime
 from dataclasses import dataclass
-from pathlib import Path
 
 from aiohttp import ClientConnectorError, ClientError, ServerDisconnectedError
 from aiohttp import web
-from homeassistant.components.http import HomeAssistantView, StaticPathConfig
+from homeassistant.components.http import HomeAssistantView
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
-from homeassistant.helpers.aiohttp_client import async_create_clientsession
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.device_registry import DeviceEntry
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 
-from .auth_bridge import complete_auth_bridge_session
+from .auth_bridge import (
+    complete_auth_bridge_session,
+    is_valid_cookie_header,
+    is_valid_issue_token,
+)
 from .const import (
     CONF_ACCESS_TOKEN,
     CONF_ACCESS_TOKEN_EXPIRES_AT,
@@ -73,14 +76,26 @@ class NestProtectAuthBridgeView(HomeAssistantView):
             payload = await request.json()
         except ValueError:
             return web.json_response({"error": "invalid_json"}, status=400)
+        if not isinstance(payload, dict):
+            return web.json_response({"error": "invalid_json"}, status=400)
 
         secret = payload.get("secret")
         issue_token = payload.get(CONF_ISSUE_TOKEN)
         cookies = payload.get(CONF_COOKIES)
+        if (
+            not isinstance(secret, str)
+            or not isinstance(issue_token, str)
+            or not isinstance(cookies, str)
+        ):
+            return web.json_response({"error": "missing_fields"}, status=400)
         if not secret or not issue_token or not cookies:
             return web.json_response({"error": "missing_fields"}, status=400)
+        if not is_valid_issue_token(issue_token):
+            return web.json_response({"error": "invalid_issue_token"}, status=400)
+        if not is_valid_cookie_header(cookies):
+            return web.json_response({"error": "invalid_cookie_header"}, status=400)
 
-        if not complete_auth_bridge_session(
+        complete_status = complete_auth_bridge_session(
             hass,
             session_id,
             secret,
@@ -88,35 +103,21 @@ class NestProtectAuthBridgeView(HomeAssistantView):
                 CONF_ISSUE_TOKEN: issue_token,
                 CONF_COOKIES: cookies,
             },
-        ):
+        )
+        if complete_status == "invalid_session":
             return web.json_response({"error": "invalid_session"}, status=403)
+        if complete_status == "expired_session":
+            return web.json_response({"error": "expired_session"}, status=410)
+        if complete_status == "already_completed":
+            return web.json_response({"error": "already_completed"}, status=409)
 
         return web.json_response({"ok": True})
 
 
 async def async_setup(hass: HomeAssistant, config: dict):
     """Set up the Nest Protect component."""
-    hass.http.register_view(NestProtectAuthBridgeView())
-
-    # Register www folder for credential helper
-    www_path = Path(__file__).parent / "www"
-    if www_path.exists():
-        try:
-            await hass.http.async_register_static_paths(
-                [
-                    StaticPathConfig(
-                        "/local/nest_protect",
-                        str(www_path),
-                        should_cache=False,
-                    )
-                ]
-            )
-            LOGGER.debug("Registered static path for credential helper at %s", www_path)
-        except Exception as e:
-            # Path might already be registered, log but continue
-            LOGGER.debug(
-                "Static path registration issue (may already be registered): %s", e
-            )
+    if hass.http is not None and "http" in hass.config.components:
+        hass.http.register_view(NestProtectAuthBridgeView())
 
     return True
 
@@ -149,7 +150,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     refresh_token = entry.data.get(CONF_REFRESH_TOKEN)
     stored_access_token, stored_expires_at = _get_stored_access_token(entry)
 
-    session = async_create_clientsession(hass)
+    session = async_get_clientsession(hass)
     account_type = entry.data.get(CONF_ACCOUNT_TYPE, Environment.PRODUCTION)
     client = NestClient(session=session, environment=NEST_ENVIRONMENTS[account_type])
 
@@ -396,7 +397,7 @@ def _get_stored_access_token(
 
 
 def _is_access_token_valid(expires_at: datetime.datetime) -> bool:
-    return expires_at > datetime.datetime.now()
+    return expires_at > datetime.datetime.now() + datetime.timedelta(minutes=2)
 
 
 def _store_access_token(
