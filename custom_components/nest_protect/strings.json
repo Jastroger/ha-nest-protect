@@ -8,7 +8,7 @@
       },
       "auth_bridge_wait": {
         "title": "Waiting for Nest Protect sign-in",
-        "description": "Authentication session `{auth_bridge_session}` is waiting for the Auth Bridge callback.\\n\\nLaunch URL: `{auth_bridge_launch_url}`\\n\\nOpen this one URL to start the add-on with launch parameters. If your Home Assistant frontend cannot open the ingress target directly from this page, open the add-on from the sidebar and keep this URL query string.\\n\\nIf this page does not auto-refresh after login, click Submit to continue after login.\\n\\nUse fallback only for troubleshooting.",
+        "description": "The Auth Bridge add-on is ready. Open the link below to start the login session:\\n\\n[{auth_bridge_launch_url}]({auth_bridge_launch_url})\\n\\nIf the link does not open automatically, open the add-on from the sidebar and copy the query string from the URL above.\\n\\nIf this page does not auto-refresh after login, click Submit.\\n\\n**Troubleshooting only:** enable the manual fallback option below.",
         "data": {
           "fallback": "Use manual fallback"
         }
