@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from typing import Any, cast
 from urllib.parse import urlencode
 
@@ -52,6 +51,8 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     VERSION = 3
     _ISSUE_TOKEN_URL_PREFIX = "https://accounts.google.com/o/oauth2/iframerpc"
+    _AUTH_BRIDGE_INGRESS_PATH = "/hassio/ingress/nest_protect_auth_bridge/"
+    _SUPERVISOR_CORE_URL = "http://supervisor/core/api"
 
     _config_entry: ConfigEntry | None = None
     _default_account_type: Environment = Environment.PRODUCTION
@@ -224,6 +225,29 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         return errors
 
+    def _build_auth_bridge_callback_url(self, session_id: str) -> str:
+        """Build callback URL reachable by add-ons through Supervisor/Core API."""
+        return f"{self._SUPERVISOR_CORE_URL}/nest_protect/auth_bridge/{session_id}"
+
+    def _build_auth_bridge_launch_url(self, session: AuthBridgeSession) -> str:
+        """Build a single launch URL for the add-on ingress page."""
+        callback_url = self._build_auth_bridge_callback_url(session.session_id)
+        launch_data = {
+            "session_id": session.session_id,
+            "secret": session.secret,
+            "callback_url": callback_url,
+        }
+        base_url = (
+            (self.hass.config.internal_url or self.hass.config.external_url or "")
+            .rstrip("/")
+        )
+        ingress_url = (
+            f"{base_url}{self._AUTH_BRIDGE_INGRESS_PATH}"
+            if base_url
+            else self._AUTH_BRIDGE_INGRESS_PATH
+        )
+        return ingress_url + "?" + urlencode(launch_data, safe=":/")
+
     async def async_validate_input(self, user_input: dict[str, Any]) -> dict[str, Any]:
         """Validate user credentials."""
 
@@ -327,20 +351,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             }
             return await self.async_step_account_link(user_input)
 
-        callback_path = f"/api/nest_protect/auth_bridge/{session.session_id}"
-        base_url = (
-            (self.hass.config.internal_url or self.hass.config.external_url or "")
-            .rstrip("/")
-        )
-        callback_url = f"{base_url}{callback_path}" if base_url else callback_path
-        launch_data = {
-            "session_id": session.session_id,
-            "secret": session.secret,
-            "callback_url": callback_url,
-        }
-        launch_url = (
-            "nest-protect-auth-bridge://start?" + urlencode(launch_data, safe=":/")
-        )
+        launch_url = self._build_auth_bridge_launch_url(session)
 
         return self.async_show_form(
             step_id="auth_bridge_wait",
@@ -348,7 +359,6 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             description_placeholders={
                 CONF_AUTH_BRIDGE_SESSION: session.session_id,
                 "auth_bridge_launch_url": launch_url,
-                "auth_bridge_launch_data": json.dumps(launch_data),
             },
         )
 

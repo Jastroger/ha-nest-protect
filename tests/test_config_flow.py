@@ -1,5 +1,10 @@
 """Tests for the Nest Protect config flow helpers."""
 
+import datetime
+from types import SimpleNamespace
+from urllib.parse import parse_qs, urlsplit
+
+from custom_components.nest_protect.auth_bridge import AuthBridgeSession
 from custom_components.nest_protect.config_flow import ConfigFlow
 from custom_components.nest_protect.const import (
     CONF_COOKIES,
@@ -180,3 +185,41 @@ def test_validate_credentials_normalizes_user_input():
     assert flow._normalize_and_validate_credentials(user_input) == {}
     assert user_input[CONF_ISSUE_TOKEN] == VALID_ISSUE_TOKEN
     assert "\n" not in user_input[CONF_COOKIES]
+
+
+def test_build_auth_bridge_callback_url_uses_supervisor_api():
+    """Test callback URL points to Supervisor/Core API."""
+    flow = ConfigFlow()
+
+    assert flow._build_auth_bridge_callback_url("abc123") == (
+        "http://supervisor/core/api/nest_protect/auth_bridge/abc123"
+    )
+
+
+def test_build_auth_bridge_launch_url_includes_all_launch_parameters():
+    """Test launch URL contains session, secret and callback in one link."""
+    flow = ConfigFlow()
+    flow.hass = SimpleNamespace(
+        config=SimpleNamespace(
+            internal_url="http://homeassistant.local:8123",
+            external_url="",
+        )
+    )
+    session = AuthBridgeSession(
+        session_id="session-1",
+        secret="secret-1",
+        expires_at=datetime.datetime.now(datetime.UTC),
+    )
+
+    launch_url = flow._build_auth_bridge_launch_url(session)
+    parsed = urlsplit(launch_url)
+    query = parse_qs(parsed.query)
+
+    assert parsed.scheme == "http"
+    assert parsed.netloc == "homeassistant.local:8123"
+    assert parsed.path == "/hassio/ingress/nest_protect_auth_bridge/"
+    assert query["session_id"] == ["session-1"]
+    assert query["secret"] == ["secret-1"]
+    assert query["callback_url"] == [
+        "http://supervisor/core/api/nest_protect/auth_bridge/session-1"
+    ]
