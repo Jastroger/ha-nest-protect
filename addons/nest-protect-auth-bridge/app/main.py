@@ -5,10 +5,11 @@ from __future__ import annotations
 import logging
 import os
 import shutil
+import subprocess
 import tempfile
 import threading
 import time
-from typing import Any
+from typing import Any, Callable
 from urllib.parse import urlsplit
 
 from flask import Flask, jsonify, redirect, render_template, request
@@ -58,6 +59,10 @@ class CaptureTimeoutError(RuntimeError):
 
 class CaptureCancelledError(RuntimeError):
     """Raised when capture is cancelled by the user."""
+
+
+class GoogleBrowserRejectedError(RuntimeError):
+    """Raised when Google rejects the embedded browser session."""
 
 
 def _mask_secret(value: str) -> str:
@@ -143,8 +148,41 @@ def _build_callback_request(callback_url: str) -> tuple[str, dict[str, str]]:
     return callback_url, headers
 
 
-def _wait_for_capture(timeout_seconds: float, poll_interval_seconds: float = 0.25) -> tuple[str, str]:
+def _build_chromium_user_agent(chromium_path: str) -> str:
+    """Build a normal desktop user agent for the installed Chromium."""
+    configured_user_agent = os.environ.get("AUTH_BRIDGE_USER_AGENT", "").strip()
+    if configured_user_agent:
+        return configured_user_agent
+
+    version = "126.0.0.0"
+    try:
+        completed = subprocess.run(
+            [chromium_path, "--version"],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        for part in completed.stdout.split():
+            if part[:1].isdigit():
+                version = part
+                break
+    except Exception:
+        LOGGER.debug("Could not detect Chromium version", exc_info=True)
+
+    return (
+        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+        f"(KHTML, like Gecko) Chrome/{version} Safari/537.36"
+    )
+
+
+def _wait_for_capture(
+    timeout_seconds: float,
+    poll_interval_seconds: float = 0.25,
+    blocked_check: Callable[[], bool] | None = None,
+) -> tuple[str, str]:
     deadline = time.monotonic() + timeout_seconds
+    next_blocked_check = 0.0
     while True:
         with state_lock:
             issue_token = state.get("issue_token", "")
@@ -156,6 +194,12 @@ def _wait_for_capture(timeout_seconds: float, poll_interval_seconds: float = 0.2
 
         if issue_token and cookies and _is_issue_token_url(issue_token) and _is_valid_cookie_header(cookies):
             return issue_token, cookies
+
+        now = time.monotonic()
+        if blocked_check and now >= next_blocked_check:
+            next_blocked_check = now + 2
+            if blocked_check():
+                raise GoogleBrowserRejectedError("google_rejected_embedded_browser")
 
         if time.monotonic() >= deadline:
             raise CaptureTimeoutError("capture_timeout")
@@ -184,18 +228,38 @@ def _capture_flow(session_id: str, secret: str, callback_url: str) -> None:
             os.environ.get("AUTH_BRIDGE_TIMEOUT_SECONDS", DEFAULT_CAPTURE_TIMEOUT_SECONDS)
         )
         chromium_path = os.environ.get("CHROMIUM_EXECUTABLE", "/usr/bin/chromium-browser")
+        user_agent = _build_chromium_user_agent(chromium_path)
+        locale = os.environ.get("AUTH_BRIDGE_LOCALE", "de-DE")
+        timezone_id = os.environ.get("AUTH_BRIDGE_TIMEZONE", "Europe/Berlin")
 
         with sync_playwright() as playwright:
             context = playwright.chromium.launch_persistent_context(
                 profile_dir,
                 headless=False,
                 executable_path=chromium_path,
-                viewport={"width": 1280, "height": 800},
-                args=["--no-sandbox", "--disable-dev-shm-usage"],
+                ignore_default_args=["--enable-automation"],
+                viewport={"width": 1365, "height": 768},
+                screen={"width": 1365, "height": 768},
+                locale=locale,
+                timezone_id=timezone_id,
+                user_agent=user_agent,
+                args=[
+                    "--disable-blink-features=AutomationControlled",
+                    "--no-sandbox",
+                    "--disable-dev-shm-usage",
+                    "--start-maximized",
+                ],
             )
             _set_state(status=BROWSER_READY, message="Browser ready")
 
             page = context.pages[0] if context.pages else context.new_page()
+
+            def google_rejected_embedded_browser() -> bool:
+                try:
+                    body_text = page.locator("body").inner_text(timeout=500)
+                except Error:
+                    return False
+                return "This browser or app may not be secure" in body_text
 
             def handle_request(playwright_request: Any) -> None:
                 request_url = playwright_request.url
@@ -222,7 +286,10 @@ def _capture_flow(session_id: str, secret: str, callback_url: str) -> None:
             page.goto(NEST_LOGIN_URL, wait_until="domcontentloaded")
             _set_state(status=WAITING_FOR_LOGIN, message="Complete Google/Nest sign-in")
 
-            issue_token, cookies = _wait_for_capture(timeout_seconds)
+            issue_token, cookies = _wait_for_capture(
+                timeout_seconds,
+                blocked_check=google_rejected_embedded_browser,
+            )
 
             callback_post_url, callback_headers = _build_callback_request(callback_url)
             _set_state(status=POSTING, message="Posting credentials to Home Assistant")
@@ -252,6 +319,12 @@ def _capture_flow(session_id: str, secret: str, callback_url: str) -> None:
         _set_state(status=TIMEOUT, message="Timed out waiting for login", error="timeout")
     except CaptureCancelledError:
         _set_state(status=FAILED, message="Cancelled", error="")
+    except GoogleBrowserRejectedError:
+        _set_state(
+            status=FAILED,
+            message="Google rejected the embedded browser. Use fallback authentication.",
+            error="google_rejected_embedded_browser",
+        )
     except Exception:
         LOGGER.warning("Auth bridge failed")
         _set_state(status=FAILED, message="Failed", error="request_failed")
