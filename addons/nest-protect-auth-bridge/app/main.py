@@ -276,7 +276,13 @@ def start() -> Any:
     session_id, secret, callback_url = _extract_launch_values()
 
     if not session_id or not secret:
-        _set_state(status=FAILED, message="Missing required launch values")
+        _set_state(
+            status=FAILED,
+            message=(
+                "Open the launch link from Home Assistant so this session can be "
+                "connected."
+            ),
+        )
         return redirect("./")
 
     try:

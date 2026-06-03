@@ -3,12 +3,21 @@
     "step": {
       "auth_bridge_start": {
         "title": "Set up Nest Protect",
-        "description": "Nest Protect is not available through Google's official SDM API. This setup uses an Auth Bridge so you can sign in normally without browser developer tools.\n\nHome Assistant OS/Supervised: use the Auth Bridge add-on.\n\nHome Assistant Container/Core: use the standalone Docker Auth Bridge.\n\nContinue to start a one-time authentication session.",
-        "data": {}
+        "description": "Nest Protect is not available through Google's official SDM API. This setup uses an Auth Bridge so you can sign in normally without browser developer tools.\n\nHome Assistant OS/Supervised: choose the Auth Bridge Add-on / App.\n\nHome Assistant Container/Core: choose the standalone Docker Auth Bridge.",
+        "data": {
+          "auth_bridge_mode": "Auth Bridge mode"
+        }
+      },
+      "auth_bridge_standalone": {
+        "title": "Standalone Docker Auth Bridge",
+        "description": "Enter the base URL of the standalone Auth Bridge you started with Docker, for example `http://192.168.178.104:8099`.\n\nHome Assistant will generate the launch link with the one-time session data. Do not open the bridge manually without the launch link from Home Assistant.",
+        "data": {
+          "auth_bridge_standalone_url": "Auth Bridge URL"
+        }
       },
       "auth_bridge_wait": {
         "title": "Waiting for Nest Protect sign-in",
-        "description": "The Auth Bridge is ready. Click the launch link below to start the login session:\\n\\n[{auth_bridge_launch_url}]({auth_bridge_launch_url})\\n\\nHA OS/Supervised: if the launch link does not open automatically, open the add-on from the sidebar and click Start Login there.\\n\\nContainer/Core: use the standalone Auth Bridge web UI you started with Docker.\\n\\nIf this page does not auto-refresh after login, click Submit.\\n\\n**Troubleshooting/developer only:** Ingress URL handling can vary; if needed, open the bridge UI manually and reuse the launch URL query string. Enable the manual fallback option below only for troubleshooting.",
+        "description": "The Auth Bridge is ready. Click the launch link below to start the login session:\\n\\n[{auth_bridge_launch_url}]({auth_bridge_launch_url})\\n\\nHA OS/Supervised: this opens the Auth Bridge add-on/app through Home Assistant Ingress.\\n\\nContainer/Core: this opens your standalone Docker Auth Bridge with the one-time session data.\\n\\nIf this page does not auto-refresh after login, click Submit.\\n\\n**Troubleshooting/developer only:** Ingress URL handling can vary; if needed, open the bridge UI manually and reuse the launch URL query string. Enable the manual fallback option below only for troubleshooting.",
         "data": {
           "fallback": "Use manual fallback"
         }
@@ -34,6 +43,7 @@
       "authentication_rejected": "Google/Nest rejected these credentials. Run the wizard again and do not log out of home.nest.com afterward.",
       "missing_issue_token": "Issue Token URL is required.",
       "invalid_issue_token": "Invalid Issue Token URL. Paste the full issueToken request URL, including all query parameters.",
+      "invalid_auth_bridge_url": "Enter an absolute Auth Bridge URL starting with http:// or https://.",
       "missing_cookie_header": "Cookie header is required.",
       "incomplete_cookie_header": "Cookie header looks incomplete. Copy the full Cookie header from the oauth2/iframe Network request.",
       "no_devices_found": "Authentication succeeded, but no Nest Protect devices were found on this account.",

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from typing import Any, cast
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlsplit
 
 from aiohttp import ClientError
 from homeassistant import config_entries
@@ -24,7 +24,9 @@ from .const import (
     CONF_ACCESS_TOKEN,
     CONF_ACCESS_TOKEN_EXPIRES_AT,
     CONF_ACCOUNT_TYPE,
+    CONF_AUTH_BRIDGE_MODE,
     CONF_AUTH_BRIDGE_SESSION,
+    CONF_AUTH_BRIDGE_STANDALONE_URL,
     CONF_COOKIES,
     CONF_ISSUE_TOKEN,
     CONF_REFRESH_TOKEN,
@@ -53,10 +55,20 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     _ISSUE_TOKEN_URL_PREFIX = "https://accounts.google.com/o/oauth2/iframerpc"
     _AUTH_BRIDGE_INGRESS_PATH = "/hassio/ingress/nest_protect_auth_bridge/"
     _SUPERVISOR_CORE_URL = "http://supervisor/core/api"
+    _AUTH_BRIDGE_MODE_ADDON = "addon"
+    _AUTH_BRIDGE_MODE_STANDALONE = "standalone"
+    _AUTH_BRIDGE_MODE_LABELS = {
+        _AUTH_BRIDGE_MODE_ADDON: "Home Assistant Add-on / App (HA OS/Supervised)",
+        _AUTH_BRIDGE_MODE_STANDALONE: (
+            "Standalone Docker Auth Bridge (HA Container/Core)"
+        ),
+    }
 
     _config_entry: ConfigEntry | None = None
     _default_account_type: Environment = Environment.PRODUCTION
     _auth_bridge_session: AuthBridgeSession | None = None
+    _auth_bridge_mode: str = _AUTH_BRIDGE_MODE_ADDON
+    _auth_bridge_standalone_url: str = ""
 
     @staticmethod
     def _normalize_issue_token(issue_token: str) -> str:
@@ -229,8 +241,21 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """Build callback URL reachable by add-ons through Supervisor/Core API."""
         return f"{self._SUPERVISOR_CORE_URL}/nest_protect/auth_bridge/{session_id}"
 
-    def _build_auth_bridge_launch_url(self, session: AuthBridgeSession) -> str:
-        """Build a single launch URL for the add-on ingress page."""
+    @staticmethod
+    def _normalize_auth_bridge_base_url(url: str) -> str:
+        """Normalize a standalone Auth Bridge base URL."""
+        return url.strip().rstrip("/")
+
+    @classmethod
+    def _validate_auth_bridge_base_url(cls, url: str) -> bool:
+        """Validate that a standalone Auth Bridge URL is absolute HTTP(S)."""
+        parsed = urlsplit(cls._normalize_auth_bridge_base_url(url))
+        return parsed.scheme in ("http", "https") and bool(parsed.netloc)
+
+    def _build_auth_bridge_addon_launch_url(
+        self, session: AuthBridgeSession
+    ) -> str:
+        """Build a launch URL for the add-on ingress page."""
         callback_url = self._build_auth_bridge_callback_url(session.session_id)
         launch_data = {
             "session_id": session.session_id,
@@ -247,6 +272,26 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             else self._AUTH_BRIDGE_INGRESS_PATH
         )
         return ingress_url + "?" + urlencode(launch_data, safe=":/")
+
+    def _build_auth_bridge_standalone_launch_url(
+        self, session: AuthBridgeSession
+    ) -> str:
+        """Build a launch URL for the standalone Docker Auth Bridge."""
+        launch_data = {
+            "session_id": session.session_id,
+            "secret": session.secret,
+        }
+        return (
+            f"{self._auth_bridge_standalone_url}/?"
+            f"{urlencode(launch_data, safe=':/')}"
+        )
+
+    def _build_auth_bridge_launch_url(self, session: AuthBridgeSession) -> str:
+        """Build the launch URL for the selected Auth Bridge mode."""
+        if self._auth_bridge_mode == self._AUTH_BRIDGE_MODE_STANDALONE:
+            return self._build_auth_bridge_standalone_launch_url(session)
+
+        return self._build_auth_bridge_addon_launch_url(session)
 
     async def async_validate_input(self, user_input: dict[str, Any]) -> dict[str, Any]:
         """Validate user credentials."""
@@ -315,15 +360,59 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     ) -> FlowResult:
         """Start the auth bridge flow."""
         if user_input is not None:
+            self._auth_bridge_mode = user_input.get(
+                CONF_AUTH_BRIDGE_MODE,
+                self._AUTH_BRIDGE_MODE_ADDON,
+            )
+            if self._auth_bridge_mode == self._AUTH_BRIDGE_MODE_STANDALONE:
+                return await self.async_step_auth_bridge_standalone()
+
             self._auth_bridge_session = create_auth_bridge_session(self.hass)
             return await self.async_step_auth_bridge_wait()
 
         return self.async_show_form(
             step_id="auth_bridge_start",
-            data_schema=vol.Schema({}),
+            data_schema=vol.Schema(
+                {
+                    vol.Required(
+                        CONF_AUTH_BRIDGE_MODE,
+                        default=self._auth_bridge_mode,
+                    ): vol.In(self._AUTH_BRIDGE_MODE_LABELS),
+                }
+            ),
             description_placeholders={
                 "session_id": "",
             },
+        )
+
+    async def async_step_auth_bridge_standalone(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Ask for the standalone Auth Bridge base URL."""
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            bridge_url = self._normalize_auth_bridge_base_url(
+                user_input[CONF_AUTH_BRIDGE_STANDALONE_URL]
+            )
+            if self._validate_auth_bridge_base_url(bridge_url):
+                self._auth_bridge_standalone_url = bridge_url
+                self._auth_bridge_session = create_auth_bridge_session(self.hass)
+                return await self.async_step_auth_bridge_wait()
+
+            errors[CONF_AUTH_BRIDGE_STANDALONE_URL] = "invalid_auth_bridge_url"
+
+        return self.async_show_form(
+            step_id="auth_bridge_standalone",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(
+                        CONF_AUTH_BRIDGE_STANDALONE_URL,
+                        default=self._auth_bridge_standalone_url,
+                    ): str,
+                }
+            ),
+            errors=errors,
         )
 
     async def async_step_auth_bridge_wait(

@@ -77,13 +77,21 @@
           sessionStorage.setItem(autoStartKey, '1');
           form.submit();
         }
+      } else {
+        document.getElementById('message').textContent =
+          'Open the launch link from Home Assistant so this session can be connected.';
       }
 
       async function pollStatus() {
         const response = await fetch('status');
         const data = await response.json();
+        const missingLaunchMessage =
+          'Open the launch link from Home Assistant so this session can be connected.';
+        const message = (!hasLaunchValues && !data.session_id && data.status === 'waiting_for_login')
+          ? missingLaunchMessage
+          : (data.message || '');
         document.getElementById('status').textContent = data.status;
-        document.getElementById('message').textContent = data.message || '';
+        document.getElementById('message').textContent = message;
         document.getElementById('session').textContent = data.session_id || '';
         document.getElementById('error').textContent = data.error || '';
       }

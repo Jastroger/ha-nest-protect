@@ -3,41 +3,51 @@
     "step": {
       "auth_bridge_start": {
         "title": "Nest Protect einrichten",
-        "description": "Nest Protect ist nicht über Googles offizielle SDM API verfügbar. Diese Einrichtung nutzt eine Auth Bridge, damit du dich normal anmelden kannst, ohne Browser-Entwicklertools zu verwenden.\n\nHome Assistant OS/Supervised: Nutze das Auth-Bridge-Add-on.\n\nHome Assistant Container/Core: Nutze die standalone Docker Auth Bridge.\n\nFahre fort, um eine einmalige Authentifizierungssitzung zu starten.",
-        "data": {}
+        "description": "Nest Protect ist nicht \u00fcber Googles offizielle SDM API verf\u00fcgbar. Diese Einrichtung nutzt eine Auth Bridge, damit du dich normal anmelden kannst, ohne Browser-Entwicklertools zu verwenden.\n\nHome Assistant OS/Supervised: W\u00e4hle das Auth Bridge Add-on / die App.\n\nHome Assistant Container/Core: W\u00e4hle die standalone Docker Auth Bridge.",
+        "data": {
+          "auth_bridge_mode": "Auth-Bridge-Modus"
+        }
+      },
+      "auth_bridge_standalone": {
+        "title": "Standalone Docker Auth Bridge",
+        "description": "Gib die Basis-URL der standalone Auth Bridge ein, die du mit Docker gestartet hast, zum Beispiel `http://192.168.178.104:8099`.\n\nHome Assistant erzeugt daraus den Launch-Link mit den einmaligen Sitzungsdaten. \u00d6ffne die Bridge nicht manuell ohne den Launch-Link aus Home Assistant.",
+        "data": {
+          "auth_bridge_standalone_url": "Auth-Bridge-URL"
+        }
       },
       "auth_bridge_wait": {
         "title": "Warte auf Nest Protect Anmeldung",
-        "description": "Die Auth Bridge ist bereit. Klicke auf den Launch-Link unten, um die Anmeldesitzung zu starten:\\n\\n[{auth_bridge_launch_url}]({auth_bridge_launch_url})\\n\\nHA OS/Supervised: Wenn der Launch-Link nicht automatisch öffnet, öffne das Add-on über die Seitenleiste und klicke dort auf „Start Login“.\\n\\nContainer/Core: Nutze die standalone Auth-Bridge-Weboberfläche, die du mit Docker gestartet hast.\\n\\nWenn diese Seite sich nach der Anmeldung nicht automatisch aktualisiert, klicke auf Weiter.\\n\\n**Nur für Fehlersuche/Entwicklung:** Das Home-Assistant-Ingress-URL-Verhalten kann je nach Installation variieren. Falls nötig, öffne die Bridge-Oberfläche manuell und übernimm den Query-String der Launch-URL. Aktiviere den manuellen Fallback unten nur zur Fehlersuche.",
+        "description": "Die Auth Bridge ist bereit. Klicke auf den Launch-Link unten, um die Anmeldesitzung zu starten:\\n\\n[{auth_bridge_launch_url}]({auth_bridge_launch_url})\\n\\nHA OS/Supervised: Dadurch wird das Auth Bridge Add-on / die App \u00fcber Home Assistant Ingress ge\u00f6ffnet.\\n\\nContainer/Core: Dadurch wird deine standalone Docker Auth Bridge mit den einmaligen Sitzungsdaten ge\u00f6ffnet.\\n\\nWenn diese Seite sich nach der Anmeldung nicht automatisch aktualisiert, klicke auf Weiter.\\n\\n**Nur f\u00fcr Fehlersuche/Entwicklung:** Das Home-Assistant-Ingress-URL-Verhalten kann je nach Installation variieren. Falls n\u00f6tig, \u00f6ffne die Bridge-Oberfl\u00e4che manuell und \u00fcbernimm den Query-String der Launch-URL. Aktiviere den manuellen Fallback unten nur zur Fehlersuche.",
         "data": {
           "fallback": "Manuellen Fallback verwenden"
         }
       },
       "wizard_login": {
         "title": "Nest Protect einrichten",
-        "description": "Nest Protect wird von der offiziellen Google Nest SDM API nicht bereitgestellt, auch wenn die Melder in der Google Home App sichtbar sind. Diese Integration nutzt deshalb die Nest-Webauthentifizierung.\n\nFüge einen Ausgabeblock eines Authentifizierungshelfers in das erste Feld ein. Der Helfer muss die echte issueToken Request URL und den Cookie-Request-Header lokal erfassen; Home Assistant selbst kann keine Google-Request-Header aus deinem Browser lesen.\n\nDie separaten Felder für Issue Token URL und Cookie-Header sind nur für alte Setups oder Notfall-Fallbacks gedacht.",
+        "description": "Nest Protect wird von der offiziellen Google Nest SDM API nicht bereitgestellt, auch wenn die Melder in der Google Home App sichtbar sind. Diese Integration nutzt deshalb die Nest-Webauthentifizierung.\n\nF\u00fcge einen Ausgabeblock eines Authentifizierungshelfers in das erste Feld ein. Der Helfer muss die echte issueToken Request URL und den Cookie-Request-Header lokal erfassen; Home Assistant selbst kann keine Google-Request-Header aus deinem Browser lesen.\n\nDie separaten Felder f\u00fcr Issue Token URL und Cookie-Header sind nur f\u00fcr alte Setups oder Notfall-Fallbacks gedacht.",
         "data": {
           "wizard_output": "Wizard-Ausgabeblock",
           "issue_token": "Issue Token URL",
           "cookies": "Cookie-Header"
         },
         "data_description": {
-          "wizard_output": "Füge den vollständigen Block eines Nest-Protect-Authentifizierungshelfers ein.",
-          "issue_token": "Nur Fallback: vollständige URL beginnend mit https://accounts.google.com/o/oauth2/iframerpc.",
-          "cookies": "Nur Fallback: vollständiger Cookie-Request-Header aus Wizard oder manueller Fehlersuche."
+          "wizard_output": "F\u00fcge den vollst\u00e4ndigen Block eines Nest-Protect-Authentifizierungshelfers ein.",
+          "issue_token": "Nur Fallback: vollst\u00e4ndige URL beginnend mit https://accounts.google.com/o/oauth2/iframerpc.",
+          "cookies": "Nur Fallback: vollst\u00e4ndiger Cookie-Request-Header aus Wizard oder manueller Fehlersuche."
         }
       }
     },
     "error": {
       "cannot_connect": "Verbindung fehlgeschlagen",
-      "network_timeout": "Die Google/Nest-Anfrage hat zu lange gedauert. Prüfe die Netzwerkverbindung und versuche es erneut.",
-      "authentication_rejected": "Google/Nest hat diese Zugangsdaten abgelehnt. Führe den Wizard erneut aus und melde dich danach nicht von home.nest.com ab.",
+      "network_timeout": "Die Google/Nest-Anfrage hat zu lange gedauert. Pr\u00fcfe die Netzwerkverbindung und versuche es erneut.",
+      "authentication_rejected": "Google/Nest hat diese Zugangsdaten abgelehnt. F\u00fchre den Wizard erneut aus und melde dich danach nicht von home.nest.com ab.",
       "missing_issue_token": "Die Issue Token URL ist erforderlich.",
-      "invalid_issue_token": "Ungültige Issue Token URL. Füge die vollständige issueToken Request URL inklusive aller Query-Parameter ein.",
+      "invalid_issue_token": "Ung\u00fcltige Issue Token URL. F\u00fcge die vollst\u00e4ndige issueToken Request URL inklusive aller Query-Parameter ein.",
+      "invalid_auth_bridge_url": "Gib eine absolute Auth-Bridge-URL ein, die mit http:// oder https:// beginnt.",
       "missing_cookie_header": "Der Cookie-Header ist erforderlich.",
-      "incomplete_cookie_header": "Der Cookie-Header wirkt unvollständig. Kopiere den vollständigen Cookie-Header aus dem oauth2/iframe Netzwerkaufruf.",
-      "no_devices_found": "Die Authentifizierung war erfolgreich, aber in diesem Account wurden keine Nest Protect Geräte gefunden.",
-      "unexpected_response": "Nest hat eine unerwartete Antwort geliefert. Versuche es erneut oder erstelle ein Issue mit geschwärzten Diagnosedaten.",
+      "incomplete_cookie_header": "Der Cookie-Header wirkt unvollst\u00e4ndig. Kopiere den vollst\u00e4ndigen Cookie-Header aus dem oauth2/iframe Netzwerkaufruf.",
+      "no_devices_found": "Die Authentifizierung war erfolgreich, aber in diesem Account wurden keine Nest Protect Ger\u00e4te gefunden.",
+      "unexpected_response": "Nest hat eine unerwartete Antwort geliefert. Versuche es erneut oder erstelle ein Issue mit geschw\u00e4rzten Diagnosedaten.",
       "unknown": "Unerwarteter Fehler"
     },
     "abort": {

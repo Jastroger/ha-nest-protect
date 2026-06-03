@@ -50,10 +50,11 @@ Primary path for Home Assistant OS / Supervised:
 Alternative path for Home Assistant Container / Core:
 
 1. Install this integration.
-1. Start the **Nest Protect Auth Bridge** as a standalone Docker container.
+1. Start the **Nest Protect Auth Bridge** as a standalone Docker container with `HA_BASE_URL` set to your Home Assistant URL.
 1. Add the Nest Protect integration in Home Assistant.
-1. Start login in the integration flow.
-1. Open the standalone Auth Bridge web UI, for example `http://<docker-host>:8099`.
+1. Select **Standalone Docker Auth Bridge (HA Container/Core)** in the integration flow.
+1. Enter the standalone Auth Bridge URL, for example `http://<docker-host>:8099`.
+1. Click the generated launch link from Home Assistant.
 1. Complete Google/Nest sign-in in the visible browser embedded in the Auth Bridge UI.
 1. Return to Home Assistant and click **Submit** / **Continue after login** if needed.
 1. Setup completes automatically once callback validation succeeds.
@@ -79,6 +80,8 @@ http://<ha-host>:8123/api/nest_protect/auth_bridge/{session_id}
 ```
 
 It does not require the Home Assistant Add-on Store and does not use `SUPERVISOR_TOKEN`.
+
+In the Home Assistant config flow, select **Standalone Docker Auth Bridge**, enter the Auth Bridge URL, and click the generated launch link. Do not open `http://<docker-host>:8099` manually without the launch link, because the bridge needs the one-time `session_id` and `secret` from Home Assistant.
 
 ### Auth Bridge add-on runtime / developer notes
 

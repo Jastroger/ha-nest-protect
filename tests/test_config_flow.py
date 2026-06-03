@@ -7,6 +7,7 @@ from urllib.parse import parse_qs, urlsplit
 from custom_components.nest_protect.auth_bridge import AuthBridgeSession
 from custom_components.nest_protect.config_flow import ConfigFlow
 from custom_components.nest_protect.const import (
+    CONF_AUTH_BRIDGE_STANDALONE_URL,
     CONF_COOKIES,
     CONF_ISSUE_TOKEN,
     CONF_WIZARD_OUTPUT,
@@ -196,9 +197,10 @@ def test_build_auth_bridge_callback_url_uses_supervisor_api():
     )
 
 
-def test_build_auth_bridge_launch_url_includes_all_launch_parameters():
-    """Test launch URL contains session, secret and callback in one link."""
+def test_build_auth_bridge_launch_url_addon_uses_ingress_and_supervisor_callback():
+    """Test add-on launch URL contains session, secret and Supervisor callback."""
     flow = ConfigFlow()
+    flow._auth_bridge_mode = flow._AUTH_BRIDGE_MODE_ADDON
     flow.hass = SimpleNamespace(
         config=SimpleNamespace(
             internal_url="http://homeassistant.local:8123",
@@ -223,3 +225,68 @@ def test_build_auth_bridge_launch_url_includes_all_launch_parameters():
     assert query["callback_url"] == [
         "http://supervisor/core/api/nest_protect/auth_bridge/session-1"
     ]
+
+
+def test_build_auth_bridge_launch_url_standalone_uses_configured_base_url():
+    """Test standalone launch URL uses the configured bridge base URL."""
+    flow = ConfigFlow()
+    flow._auth_bridge_mode = flow._AUTH_BRIDGE_MODE_STANDALONE
+    flow._auth_bridge_standalone_url = "http://192.168.178.104:8099"
+    session = AuthBridgeSession(
+        session_id="session-1",
+        secret="secret-1",
+        expires_at=datetime.datetime.now(datetime.UTC),
+    )
+
+    launch_url = flow._build_auth_bridge_launch_url(session)
+    parsed = urlsplit(launch_url)
+    query = parse_qs(parsed.query)
+
+    assert parsed.scheme == "http"
+    assert parsed.netloc == "192.168.178.104:8099"
+    assert parsed.path == "/"
+    assert query["session_id"] == ["session-1"]
+    assert query["secret"] == ["secret-1"]
+
+
+def test_build_auth_bridge_launch_url_standalone_omits_supervisor_callback():
+    """Test standalone launch URL does not include Supervisor callback data."""
+    flow = ConfigFlow()
+    flow._auth_bridge_mode = flow._AUTH_BRIDGE_MODE_STANDALONE
+    flow._auth_bridge_standalone_url = "https://bridge.example.test"
+    session = AuthBridgeSession(
+        session_id="session-1",
+        secret="secret-1",
+        expires_at=datetime.datetime.now(datetime.UTC),
+    )
+
+    launch_url = flow._build_auth_bridge_launch_url(session)
+    query = parse_qs(urlsplit(launch_url).query)
+
+    assert "callback_url" not in query
+    assert "supervisor/core" not in launch_url
+
+
+def test_validate_auth_bridge_base_url_rejects_invalid_url():
+    """Test standalone Auth Bridge URL validation requires absolute HTTP(S)."""
+    assert ConfigFlow._validate_auth_bridge_base_url("192.168.178.104:8099") is False
+    assert ConfigFlow._validate_auth_bridge_base_url("/local/path") is False
+    assert ConfigFlow._validate_auth_bridge_base_url("ftp://bridge.example") is False
+    assert (
+        ConfigFlow._validate_auth_bridge_base_url("http://192.168.178.104:8099")
+        is True
+    )
+
+
+async def test_auth_bridge_standalone_step_rejects_invalid_url():
+    """Test standalone step rejects invalid bridge URLs with a field error."""
+    flow = ConfigFlow()
+    result = await flow.async_step_auth_bridge_standalone(
+        {CONF_AUTH_BRIDGE_STANDALONE_URL: "192.168.178.104:8099"}
+    )
+
+    assert result["type"] == "form"
+    assert result["step_id"] == "auth_bridge_standalone"
+    assert result["errors"] == {
+        CONF_AUTH_BRIDGE_STANDALONE_URL: "invalid_auth_bridge_url"
+    }
