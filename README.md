@@ -50,10 +50,10 @@ Primary path for Home Assistant OS / Supervised:
 Alternative path for Home Assistant Container / Core:
 
 1. Install this integration.
-1. Start the **Nest Protect Auth Bridge** as a standalone Docker container with `HA_BASE_URL` set to your Home Assistant URL.
+1. Start the **Nest Protect Auth Bridge** as a standalone Docker container with `HA_BASE_URL` set to your Home Assistant host URL.
 1. Add the Nest Protect integration in Home Assistant.
 1. Select **Standalone Docker Auth Bridge (HA Container/Core)** in the integration flow.
-1. Enter the standalone Auth Bridge URL, for example `http://<docker-host>:8099`.
+1. Enter the standalone Auth Bridge URL, usually `http://192.168.178.xxx:8099`.
 1. Click the generated launch link from Home Assistant.
 1. Complete Google/Nest sign-in in the visible browser embedded in the Auth Bridge UI.
 1. Return to Home Assistant and click **Submit** / **Continue after login** if needed.
@@ -65,12 +65,27 @@ The product goal is zero DevTools setup: normal users should not open browser de
 
 Use standalone mode when you run Home Assistant Container or Core and cannot install Home Assistant add-ons.
 
-Copy `docker-compose.example.yml`, then set `HA_BASE_URL` to the URL that the Auth Bridge container can use to reach Home Assistant:
+Copy `.env.example` to `.env`, then set `HA_BASE_URL` to the URL that the Auth Bridge container can use to reach Home Assistant. Use the Home Assistant host IP, for example `http://192.168.178.xxx:8123`.
+
+Do not use `localhost` for `HA_BASE_URL` unless you intentionally run with host networking. Inside a normal Docker container, `localhost` points to the Auth Bridge container itself, not Home Assistant.
 
 ```bash
-HA_BASE_URL=http://homeassistant.local:8123
+HA_BASE_URL=http://192.168.178.xxx:8123
 AUTH_BRIDGE_PORT=8099
+BUILD_FROM=ghcr.io/home-assistant/aarch64-base:3.20
 docker compose -f docker-compose.example.yml up
+```
+
+Raspberry Pi 4 users normally need the aarch64 Home Assistant base image:
+
+```bash
+BUILD_FROM=ghcr.io/home-assistant/aarch64-base:3.20
+```
+
+Normal x86 servers normally use the amd64 base image:
+
+```bash
+BUILD_FROM=ghcr.io/home-assistant/amd64-base:3.20
 ```
 
 Standalone mode uses the same browser capture UI as the add-on, but posts the callback directly to:
@@ -81,7 +96,7 @@ http://<ha-host>:8123/api/nest_protect/auth_bridge/{session_id}
 
 It does not require the Home Assistant Add-on Store and does not use `SUPERVISOR_TOKEN`.
 
-In the Home Assistant config flow, select **Standalone Docker Auth Bridge**, enter the Auth Bridge URL, and click the generated launch link. Do not open `http://<docker-host>:8099` manually without the launch link, because the bridge needs the one-time `session_id` and `secret` from Home Assistant.
+In the Home Assistant config flow, select **Standalone Docker Auth Bridge**, enter the Auth Bridge URL, usually `http://192.168.178.xxx:8099`, and click the generated launch link. Do not open the bridge manually without the launch link, because the bridge needs the one-time `session_id` and `secret` from Home Assistant.
 
 ### Auth Bridge add-on runtime / developer notes
 
