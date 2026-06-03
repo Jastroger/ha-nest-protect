@@ -2,8 +2,7 @@ services:
   nest-protect-auth-bridge:
     build:
       context: ./addons/nest-protect-auth-bridge
-      args:
-        BUILD_FROM: ${BUILD_FROM:-ghcr.io/home-assistant/amd64-base:3.20}
+      dockerfile: Dockerfile.standalone
     image: nest-protect-auth-bridge:local
     container_name: nest-protect-auth-bridge
     environment:

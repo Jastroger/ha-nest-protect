@@ -72,21 +72,10 @@ Do not use `localhost` for `HA_BASE_URL` unless you intentionally run with host 
 ```bash
 HA_BASE_URL=http://192.168.178.xxx:8123
 AUTH_BRIDGE_PORT=8099
-BUILD_FROM=ghcr.io/home-assistant/aarch64-base:3.20
-docker compose -f docker-compose.example.yml up
+docker compose -f docker-compose.example.yml --env-file .env up --build
 ```
 
-Raspberry Pi 4 users normally need the aarch64 Home Assistant base image:
-
-```bash
-BUILD_FROM=ghcr.io/home-assistant/aarch64-base:3.20
-```
-
-Normal x86 servers normally use the amd64 base image:
-
-```bash
-BUILD_FROM=ghcr.io/home-assistant/amd64-base:3.20
-```
+Standalone Docker uses `addons/nest-protect-auth-bridge/Dockerfile.standalone`, based on `python:3.13-slim-bookworm`. This is intentional: Playwright Python packages do not install reliably on Alpine/musl Home Assistant base images. On Raspberry Pi 4, Docker should pull the arm64/aarch64 variant of the Debian-based Python image automatically. The Home Assistant add-on packaging can keep its separate Home Assistant base image Dockerfile.
 
 Standalone mode uses the same browser capture UI as the add-on, but posts the callback directly to:
 
@@ -109,7 +98,8 @@ Use these notes for release validation and troubleshooting.
 1. If something fails, check logs in both places:
    - Home Assistant add-on log panel (**Settings → Add-ons → Nest Protect Auth Bridge → Log**)
    - Runtime files inside the add-on container: `/tmp/auth-bridge.log` (Flask/Playwright/Chromium), `/tmp/websockify.log`, `/tmp/x11vnc.log`, `/tmp/fluxbox.log`
-1. If the Docker build fails with `externally-managed-environment`, make sure the Auth Bridge Dockerfile installs Python requirements into `/opt/venv` and uses `/opt/venv/bin/pip`, not system `pip3 install`.
+1. If the standalone Docker build tries to use `ghcr.io/home-assistant/*-base`, make sure `docker-compose.example.yml` builds `Dockerfile.standalone`. Standalone Docker must use the Debian-based Python image because Playwright does not work reliably on Alpine/musl.
+1. If the add-on Docker build fails with `externally-managed-environment`, make sure the add-on Dockerfile installs Python requirements into `/opt/venv` and uses `/opt/venv/bin/pip`, not system `pip3 install`.
 1. Known limitation: Home Assistant Ingress URL handling can vary by installation/frontend path. The config-flow launch link behavior must be tested on real HA OS/Supervised environments before release.
 1. Manual wizard/DevTools flow remains fallback-only for troubleshooting and should not be the default user path.
 

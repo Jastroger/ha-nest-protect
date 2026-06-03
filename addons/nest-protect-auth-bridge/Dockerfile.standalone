@@ -1,0 +1,40 @@
+FROM python:3.13-slim-bookworm
+
+WORKDIR /app
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        bash \
+        chromium \
+        fluxbox \
+        fonts-dejavu \
+        fonts-liberation \
+        libatk-bridge2.0-0 \
+        libasound2 \
+        libgbm1 \
+        libgtk-3-0 \
+        libnss3 \
+        nginx \
+        novnc \
+        websockify \
+        x11vnc \
+        xvfb \
+    && rm -rf /var/lib/apt/lists/* \
+    && rm -f /etc/nginx/sites-enabled/default
+
+COPY app/requirements.txt /app/requirements.txt
+RUN pip install --no-cache-dir -r /app/requirements.txt
+
+COPY app /app
+COPY run-standalone.sh /run-standalone.sh
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+RUN chmod +x /run-standalone.sh
+
+ENV PYTHONUNBUFFERED=1
+ENV AUTH_BRIDGE_MODE=standalone
+ENV AUTH_BRIDGE_PORT=8099
+ENV CHROMIUM_EXECUTABLE=/usr/bin/chromium
+
+EXPOSE 8099
+
+CMD ["/run-standalone.sh"]
