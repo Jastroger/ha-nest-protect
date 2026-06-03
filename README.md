@@ -109,6 +109,7 @@ Use these notes for release validation and troubleshooting.
 1. If something fails, check logs in both places:
    - Home Assistant add-on log panel (**Settings → Add-ons → Nest Protect Auth Bridge → Log**)
    - Runtime files inside the add-on container: `/tmp/auth-bridge.log` (Flask/Playwright/Chromium), `/tmp/websockify.log`, `/tmp/x11vnc.log`, `/tmp/fluxbox.log`
+1. If the Docker build fails with `externally-managed-environment`, make sure the Auth Bridge Dockerfile installs Python requirements into `/opt/venv` and uses `/opt/venv/bin/pip`, not system `pip3 install`.
 1. Known limitation: Home Assistant Ingress URL handling can vary by installation/frontend path. The config-flow launch link behavior must be tested on real HA OS/Supervised environments before release.
 1. Manual wizard/DevTools flow remains fallback-only for troubleshooting and should not be the default user path.
 
