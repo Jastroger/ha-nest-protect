@@ -49,6 +49,20 @@ Primary path (normal users):
 
 The product goal is zero DevTools setup: normal users should not open browser developer tools, export HAR files, inspect Network requests, search for Cookie headers, or run JavaScript snippets.
 
+### Auth Bridge add-on runtime / developer notes
+
+Use these notes for release validation and troubleshooting.
+
+1. Install this repository's add-on source as a **local add-on** (copy `addons/nest-protect-auth-bridge` into your Home Assistant local add-ons directory).
+1. In Home Assistant, go to **Settings → Add-ons**, open **Nest Protect Auth Bridge**, then click **Start**.
+1. Open the add-on through the Home Assistant sidebar (Ingress panel: **Nest Protect Auth Bridge**). The config-flow launch URL should also open this Ingress page with one-time launch parameters.
+1. Click **Start Login** and confirm noVNC shows a live Chromium window (Nest sign-in page rendered inside the embedded browser frame).
+1. If something fails, check logs in both places:
+   - Home Assistant add-on log panel (**Settings → Add-ons → Nest Protect Auth Bridge → Log**)
+   - Runtime files inside the add-on container: `/tmp/auth-bridge.log` (Flask/Playwright/Chromium), `/tmp/websockify.log`, `/tmp/x11vnc.log`, `/tmp/fluxbox.log`
+1. Known limitation: Home Assistant Ingress URL handling can vary by installation/frontend path. The config-flow launch URL behavior must be tested on real HA OS/Supervised environments before release.
+1. Manual wizard/DevTools flow remains fallback-only for troubleshooting and should not be the default user path.
+
 ### Auth Bridge Callback Contract
 
 The integration now has a callback endpoint for an add-on or companion app:

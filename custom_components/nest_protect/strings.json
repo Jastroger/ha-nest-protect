@@ -8,7 +8,7 @@
       },
       "auth_bridge_wait": {
         "title": "Waiting for Nest Protect sign-in",
-        "description": "The Auth Bridge add-on is ready. Open the link below to start the login session:\\n\\n[{auth_bridge_launch_url}]({auth_bridge_launch_url})\\n\\nIf the link does not open automatically, open the add-on from the sidebar and copy the query string from the URL above.\\n\\nIf this page does not auto-refresh after login, click Submit.\\n\\n**Troubleshooting only:** enable the manual fallback option below.",
+        "description": "The Auth Bridge add-on is ready. Open the link below to start the login session:\\n\\n[{auth_bridge_launch_url}]({auth_bridge_launch_url})\\n\\nIf the link does not open automatically, open the add-on from the sidebar and click Start Login there.\\n\\nIf this page does not auto-refresh after login, click Submit.\\n\\n**Troubleshooting/developer only:** Ingress URL handling can vary; if needed, open the sidebar add-on page and manually reuse the launch URL query string. Enable the manual fallback option below only for troubleshooting.",
         "data": {
           "fallback": "Use manual fallback"
         }

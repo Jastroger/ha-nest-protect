@@ -8,7 +8,7 @@
       },
       "auth_bridge_wait": {
         "title": "Warte auf Nest Protect Anmeldung",
-        "description": "Das Auth-Bridge-Add-on ist bereit. Öffne den folgenden Link, um die Anmeldesitzung zu starten:\\n\\n[{auth_bridge_launch_url}]({auth_bridge_launch_url})\\n\\nWenn der Link nicht automatisch geöffnet wird, öffne das Add-on über die Seitenleiste und kopiere den Query-String aus der obigen URL.\\n\\nWenn diese Seite sich nach der Anmeldung nicht automatisch aktualisiert, klicke auf Weiter.\\n\\n**Nur zur Fehlersuche:** Aktiviere die manuelle Ausweichoption unten.",
+        "description": "Das Auth-Bridge-Add-on ist bereit. Öffne den folgenden Link, um die Anmeldesitzung zu starten:\\n\\n[{auth_bridge_launch_url}]({auth_bridge_launch_url})\\n\\nWenn der Link das Ingress-Ziel nicht öffnet, öffne das Add-on über die Seitenleiste und klicke dort auf „Start Login“.\\n\\nWenn diese Seite sich nach der Anmeldung nicht automatisch aktualisiert, klicke auf Weiter.\\n\\nNur zur Fehlersuche den Fallback verwenden.\\n\\nHinweis für Entwickler: Das Home-Assistant-Ingress-URL-Verhalten kann je nach Installation variieren. Falls nötig, den Query-String der Launch-URL bei der Fehlersuche manuell übernehmen.",
         "data": {
           "fallback": "Manuellen Fallback verwenden"
         }
