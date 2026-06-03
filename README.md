@@ -36,18 +36,49 @@ Copy the `custom_components/nest_protect` to your custom_components folder and r
 
 ## Authentication Setup
 
-Primary path (normal users):
+Primary path for Home Assistant OS / Supervised:
 
 1. Install this integration.
 1. Install the **Nest Protect Auth Bridge** add-on.
 1. Add the Nest Protect integration in Home Assistant.
-1. Start login in the integration flow (it provides a single launch URL).
-1. Open that launch URL to start the add-on Ingress page with one-time session parameters.
+1. Start login in the integration flow.
+1. Click the launch link to open the add-on Ingress page with one-time session parameters.
 1. Complete Google/Nest sign-in in the visible browser embedded in the Auth Bridge add-on UI.
 1. Return to Home Assistant and click **Submit** / **Continue after login** if needed.
 1. Setup completes automatically once callback validation succeeds.
 
+Alternative path for Home Assistant Container / Core:
+
+1. Install this integration.
+1. Start the **Nest Protect Auth Bridge** as a standalone Docker container.
+1. Add the Nest Protect integration in Home Assistant.
+1. Start login in the integration flow.
+1. Open the standalone Auth Bridge web UI, for example `http://<docker-host>:8099`.
+1. Complete Google/Nest sign-in in the visible browser embedded in the Auth Bridge UI.
+1. Return to Home Assistant and click **Submit** / **Continue after login** if needed.
+1. Setup completes automatically once callback validation succeeds.
+
 The product goal is zero DevTools setup: normal users should not open browser developer tools, export HAR files, inspect Network requests, search for Cookie headers, or run JavaScript snippets.
+
+### Standalone Docker Auth Bridge
+
+Use standalone mode when you run Home Assistant Container or Core and cannot install Home Assistant add-ons.
+
+Copy `docker-compose.example.yml`, then set `HA_BASE_URL` to the URL that the Auth Bridge container can use to reach Home Assistant:
+
+```bash
+HA_BASE_URL=http://homeassistant.local:8123
+AUTH_BRIDGE_PORT=8099
+docker compose -f docker-compose.example.yml up
+```
+
+Standalone mode uses the same browser capture UI as the add-on, but posts the callback directly to:
+
+```text
+http://<ha-host>:8123/api/nest_protect/auth_bridge/{session_id}
+```
+
+It does not require the Home Assistant Add-on Store and does not use `SUPERVISOR_TOKEN`.
 
 ### Auth Bridge add-on runtime / developer notes
 
@@ -55,12 +86,12 @@ Use these notes for release validation and troubleshooting.
 
 1. Install this repository's add-on source as a **local add-on** (copy `addons/nest-protect-auth-bridge` into your Home Assistant local add-ons directory).
 1. In Home Assistant, go to **Settings → Add-ons**, open **Nest Protect Auth Bridge**, then click **Start**.
-1. Open the add-on through the Home Assistant sidebar (Ingress panel: **Nest Protect Auth Bridge**). The config-flow launch URL should also open this Ingress page with one-time launch parameters.
+1. Open the add-on through the Home Assistant sidebar (Ingress panel: **Nest Protect Auth Bridge**). The config-flow launch link should also open this Ingress page with one-time launch parameters.
 1. Click **Start Login** and confirm noVNC shows a live Chromium window (Nest sign-in page rendered inside the embedded browser frame).
 1. If something fails, check logs in both places:
    - Home Assistant add-on log panel (**Settings → Add-ons → Nest Protect Auth Bridge → Log**)
    - Runtime files inside the add-on container: `/tmp/auth-bridge.log` (Flask/Playwright/Chromium), `/tmp/websockify.log`, `/tmp/x11vnc.log`, `/tmp/fluxbox.log`
-1. Known limitation: Home Assistant Ingress URL handling can vary by installation/frontend path. The config-flow launch URL behavior must be tested on real HA OS/Supervised environments before release.
+1. Known limitation: Home Assistant Ingress URL handling can vary by installation/frontend path. The config-flow launch link behavior must be tested on real HA OS/Supervised environments before release.
 1. Manual wizard/DevTools flow remains fallback-only for troubleshooting and should not be the default user path.
 
 ### Auth Bridge Callback Contract
@@ -69,6 +100,12 @@ The integration now has a callback endpoint for an add-on or companion app:
 
 ```text
 POST http://supervisor/core/api/nest_protect/auth_bridge/{session_id}
+```
+
+For standalone Docker mode, use the Home Assistant base URL instead:
+
+```text
+POST http://<ha-host>:8123/api/nest_protect/auth_bridge/{session_id}
 ```
 
 Payload:
@@ -81,7 +118,7 @@ Payload:
 }
 ```
 
-The `session_id` and one-time secret are created by the Home Assistant config flow and carried in the one-click launch URL. Add-ons should call the Supervisor/Core API callback with the Supervisor token. The callback stores the result only when the secret matches. The config flow then validates the credentials and finishes setup.
+The `session_id` and one-time secret are created by the Home Assistant config flow. Add-ons should call the Supervisor/Core API callback with the Supervisor token. Standalone Docker mode should call the Home Assistant callback URL directly and relies on the one-time secret for protection. The callback stores the result only when the secret matches. The config flow then validates the credentials and finishes setup.
 
 ### Manual Fallback / Troubleshooting Only
 

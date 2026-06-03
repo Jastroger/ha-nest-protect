@@ -54,7 +54,7 @@
 
       const params = new URLSearchParams(window.location.search);
       const sessionId = params.get('session_id') || '';
-      const hasLaunchValues = ['session_id', 'secret', 'callback_url'].every((key) => {
+      const hasLaunchValues = ['session_id', 'secret'].every((key) => {
         const value = params.get(key);
         return value && value.trim().length > 0;
       });
@@ -62,6 +62,9 @@
       if (hasLaunchValues) {
         const form = document.getElementById('start-form');
         ['session_id', 'secret', 'callback_url'].forEach((key) => {
+          if (!params.has(key)) {
+            return;
+          }
           const input = document.createElement('input');
           input.type = 'hidden';
           input.name = key;

@@ -3,6 +3,10 @@ set -euo pipefail
 
 export DISPLAY=:99
 export CHROMIUM_EXECUTABLE="${CHROMIUM_EXECUTABLE:-/usr/bin/chromium-browser}"
+export AUTH_BRIDGE_MODE="${AUTH_BRIDGE_MODE:-addon}"
+export AUTH_BRIDGE_PORT="${AUTH_BRIDGE_PORT:-8099}"
+
+sed -i "s/listen 8099;/listen ${AUTH_BRIDGE_PORT};/" /etc/nginx/http.d/default.conf
 
 Xvfb :99 -screen 0 1280x800x24 -nolisten tcp &
 XVFB_PID=$!

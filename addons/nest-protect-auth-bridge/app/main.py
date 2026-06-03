@@ -16,6 +16,9 @@ import requests
 
 NEST_LOGIN_URL = "https://home.nest.com"
 DEFAULT_CAPTURE_TIMEOUT_SECONDS = 600
+DEFAULT_AUTH_BRIDGE_PORT = 8099
+MODE_ADDON = "addon"
+MODE_STANDALONE = "standalone"
 
 BROWSER_STARTING = "browser_starting"
 BROWSER_READY = "browser_ready"
@@ -93,6 +96,29 @@ def _is_valid_callback_url(callback_url: str) -> bool:
     return bool(parsed.scheme in {"http", "https"} and parsed.netloc and parsed.path)
 
 
+def _get_auth_bridge_mode() -> str:
+    """Return the configured Auth Bridge deployment mode."""
+    mode = os.environ.get("AUTH_BRIDGE_MODE", MODE_ADDON).strip().lower()
+    if mode not in {MODE_ADDON, MODE_STANDALONE}:
+        raise RuntimeError("invalid_auth_bridge_mode")
+    return mode
+
+
+def _build_callback_url(session_id: str, callback_url: str = "") -> str:
+    """Build the Home Assistant callback URL for the current deployment mode."""
+    if callback_url:
+        return callback_url
+
+    mode = _get_auth_bridge_mode()
+    if mode == MODE_ADDON:
+        return f"http://supervisor/core/api/nest_protect/auth_bridge/{session_id}"
+
+    ha_base_url = os.environ.get("HA_BASE_URL", "").strip().rstrip("/")
+    if not ha_base_url:
+        raise RuntimeError("missing_ha_base_url")
+    return f"{ha_base_url}/api/nest_protect/auth_bridge/{session_id}"
+
+
 def _extract_launch_values() -> tuple[str, str, str]:
     session_id = (request.form.get("session_id") or request.args.get("session_id") or "").strip()
     secret = (request.form.get("secret") or request.args.get("secret") or "").strip()
@@ -105,7 +131,11 @@ def _extract_launch_values() -> tuple[str, str, str]:
 def _build_callback_request(callback_url: str) -> tuple[str, dict[str, str]]:
     headers: dict[str, str] = {}
     parsed = urlsplit(callback_url)
-    if parsed.hostname == "supervisor" and parsed.path.startswith("/core/api/"):
+    if (
+        _get_auth_bridge_mode() == MODE_ADDON
+        and parsed.hostname == "supervisor"
+        and parsed.path.startswith("/core/api/")
+    ):
         token = os.environ.get("SUPERVISOR_TOKEN", "")
         if not token:
             raise RuntimeError("missing_supervisor_token")
@@ -245,8 +275,14 @@ def index() -> str:
 def start() -> Any:
     session_id, secret, callback_url = _extract_launch_values()
 
-    if not session_id or not secret or not callback_url:
+    if not session_id or not secret:
         _set_state(status=FAILED, message="Missing required launch values")
+        return redirect("./")
+
+    try:
+        callback_url = _build_callback_url(session_id, callback_url)
+    except RuntimeError as err:
+        _set_state(status=FAILED, message="Missing callback configuration", error=str(err))
         return redirect("./")
 
     if not _is_valid_callback_url(callback_url):
@@ -255,8 +291,8 @@ def start() -> Any:
 
     try:
         _build_callback_request(callback_url)
-    except RuntimeError:
-        _set_state(status=FAILED, message="Missing Supervisor token", error="missing_supervisor_token")
+    except RuntimeError as err:
+        _set_state(status=FAILED, message="Callback authentication unavailable", error=str(err))
         return redirect("./")
 
     with state_lock:
@@ -323,4 +359,7 @@ def status() -> Any:
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8100)
+    app.run(
+        host="0.0.0.0",
+        port=int(os.environ.get("AUTH_BRIDGE_APP_PORT", "8100")),
+    )

@@ -1,0 +1,13 @@
+services:
+  nest-protect-auth-bridge:
+    build:
+      context: ./addons/nest-protect-auth-bridge
+    image: nest-protect-auth-bridge:local
+    container_name: nest-protect-auth-bridge
+    environment:
+      AUTH_BRIDGE_MODE: standalone
+      HA_BASE_URL: ${HA_BASE_URL:-http://homeassistant.local:8123}
+      AUTH_BRIDGE_PORT: ${AUTH_BRIDGE_PORT:-8099}
+    ports:
+      - "${AUTH_BRIDGE_PORT:-8099}:${AUTH_BRIDGE_PORT:-8099}"
+    restart: unless-stopped

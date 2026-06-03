@@ -26,5 +26,9 @@ COPY nginx.conf /etc/nginx/http.d/default.conf
 RUN chmod +x /run.sh
 
 ENV PYTHONUNBUFFERED=1
+ENV AUTH_BRIDGE_MODE=addon
+ENV AUTH_BRIDGE_PORT=8099
+
+EXPOSE 8099
 
 CMD ["/run.sh"]

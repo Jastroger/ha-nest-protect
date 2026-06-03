@@ -67,6 +67,7 @@ def test_callback_url_validation_requires_absolute_http_url() -> None:
 
 def test_build_callback_request_requires_supervisor_token(monkeypatch) -> None:
     """Supervisor API callback posting requires token."""
+    monkeypatch.setenv("AUTH_BRIDGE_MODE", "addon")
     monkeypatch.delenv("SUPERVISOR_TOKEN", raising=False)
     with pytest.raises(RuntimeError):
         addon_main._build_callback_request(
@@ -79,6 +80,47 @@ def test_build_callback_request_requires_supervisor_token(monkeypatch) -> None:
     )
     assert url == "http://supervisor/core/api/nest_protect/auth_bridge/x"
     assert headers["Authorization"].startswith("Bearer ")
+
+
+def test_build_callback_url_addon_defaults_to_supervisor(monkeypatch) -> None:
+    """Add-on mode builds Supervisor/Core callback URLs."""
+    monkeypatch.setenv("AUTH_BRIDGE_MODE", "addon")
+
+    assert addon_main._build_callback_url("session-1") == (
+        "http://supervisor/core/api/nest_protect/auth_bridge/session-1"
+    )
+
+
+def test_build_callback_url_standalone_uses_ha_base_url(monkeypatch) -> None:
+    """Standalone mode builds callback URLs from HA_BASE_URL."""
+    monkeypatch.setenv("AUTH_BRIDGE_MODE", "standalone")
+    monkeypatch.setenv("HA_BASE_URL", "http://homeassistant.local:8123/")
+
+    assert addon_main._build_callback_url("session-1") == (
+        "http://homeassistant.local:8123/api/nest_protect/auth_bridge/session-1"
+    )
+
+
+def test_build_callback_request_standalone_does_not_require_supervisor_token(monkeypatch) -> None:
+    """Standalone mode can post directly to Home Assistant without Supervisor token."""
+    monkeypatch.setenv("AUTH_BRIDGE_MODE", "standalone")
+    monkeypatch.delenv("SUPERVISOR_TOKEN", raising=False)
+
+    url, headers = addon_main._build_callback_request(
+        "http://homeassistant.local:8123/api/nest_protect/auth_bridge/x"
+    )
+
+    assert url == "http://homeassistant.local:8123/api/nest_protect/auth_bridge/x"
+    assert "Authorization" not in headers
+
+
+def test_build_callback_url_standalone_requires_ha_base_url(monkeypatch) -> None:
+    """Standalone mode requires HA_BASE_URL when no callback URL is supplied."""
+    monkeypatch.setenv("AUTH_BRIDGE_MODE", "standalone")
+    monkeypatch.delenv("HA_BASE_URL", raising=False)
+
+    with pytest.raises(RuntimeError, match="missing_ha_base_url"):
+        addon_main._build_callback_url("session-1")
 
 
 def test_wait_for_capture_times_out() -> None:

@@ -3,12 +3,12 @@
     "step": {
       "auth_bridge_start": {
         "title": "Set up Nest Protect",
-        "description": "Nest Protect is not available through Google's official SDM API. This setup uses a local Auth Bridge so you can sign in normally without browser developer tools.\n\nContinue to start a one-time authentication session.",
+        "description": "Nest Protect is not available through Google's official SDM API. This setup uses an Auth Bridge so you can sign in normally without browser developer tools.\n\nHome Assistant OS/Supervised: use the Auth Bridge add-on.\n\nHome Assistant Container/Core: use the standalone Docker Auth Bridge.\n\nContinue to start a one-time authentication session.",
         "data": {}
       },
       "auth_bridge_wait": {
         "title": "Waiting for Nest Protect sign-in",
-        "description": "The Auth Bridge add-on is ready. Open the link below to start the login session:\\n\\n[{auth_bridge_launch_url}]({auth_bridge_launch_url})\\n\\nIf the link does not open automatically, open the add-on from the sidebar and click Start Login there.\\n\\nIf this page does not auto-refresh after login, click Submit.\\n\\n**Troubleshooting/developer only:** Ingress URL handling can vary; if needed, open the sidebar add-on page and manually reuse the launch URL query string. Enable the manual fallback option below only for troubleshooting.",
+        "description": "The Auth Bridge is ready. Click the launch link below to start the login session:\\n\\n[{auth_bridge_launch_url}]({auth_bridge_launch_url})\\n\\nHA OS/Supervised: if the launch link does not open automatically, open the add-on from the sidebar and click Start Login there.\\n\\nContainer/Core: use the standalone Auth Bridge web UI you started with Docker.\\n\\nIf this page does not auto-refresh after login, click Submit.\\n\\n**Troubleshooting/developer only:** Ingress URL handling can vary; if needed, open the bridge UI manually and reuse the launch URL query string. Enable the manual fallback option below only for troubleshooting.",
         "data": {
           "fallback": "Use manual fallback"
         }

@@ -3,12 +3,12 @@
     "step": {
       "auth_bridge_start": {
         "title": "Nest Protect einrichten",
-        "description": "Nest Protect ist nicht über Googles offizielle SDM API verfügbar. Diese Einrichtung nutzt eine lokale Auth Bridge, damit du dich normal anmelden kannst, ohne Browser-Entwicklertools zu verwenden.\n\nFahre fort, um eine einmalige Authentifizierungssitzung zu starten.",
+        "description": "Nest Protect ist nicht über Googles offizielle SDM API verfügbar. Diese Einrichtung nutzt eine Auth Bridge, damit du dich normal anmelden kannst, ohne Browser-Entwicklertools zu verwenden.\n\nHome Assistant OS/Supervised: Nutze das Auth-Bridge-Add-on.\n\nHome Assistant Container/Core: Nutze die standalone Docker Auth Bridge.\n\nFahre fort, um eine einmalige Authentifizierungssitzung zu starten.",
         "data": {}
       },
       "auth_bridge_wait": {
         "title": "Warte auf Nest Protect Anmeldung",
-        "description": "Das Auth-Bridge-Add-on ist bereit. Öffne den folgenden Link, um die Anmeldesitzung zu starten:\\n\\n[{auth_bridge_launch_url}]({auth_bridge_launch_url})\\n\\nWenn der Link das Ingress-Ziel nicht öffnet, öffne das Add-on über die Seitenleiste und klicke dort auf „Start Login“.\\n\\nWenn diese Seite sich nach der Anmeldung nicht automatisch aktualisiert, klicke auf Weiter.\\n\\nNur zur Fehlersuche den Fallback verwenden.\\n\\nHinweis für Entwickler: Das Home-Assistant-Ingress-URL-Verhalten kann je nach Installation variieren. Falls nötig, den Query-String der Launch-URL bei der Fehlersuche manuell übernehmen.",
+        "description": "Die Auth Bridge ist bereit. Klicke auf den Launch-Link unten, um die Anmeldesitzung zu starten:\\n\\n[{auth_bridge_launch_url}]({auth_bridge_launch_url})\\n\\nHA OS/Supervised: Wenn der Launch-Link nicht automatisch öffnet, öffne das Add-on über die Seitenleiste und klicke dort auf „Start Login“.\\n\\nContainer/Core: Nutze die standalone Auth-Bridge-Weboberfläche, die du mit Docker gestartet hast.\\n\\nWenn diese Seite sich nach der Anmeldung nicht automatisch aktualisiert, klicke auf Weiter.\\n\\n**Nur für Fehlersuche/Entwicklung:** Das Home-Assistant-Ingress-URL-Verhalten kann je nach Installation variieren. Falls nötig, öffne die Bridge-Oberfläche manuell und übernimm den Query-String der Launch-URL. Aktiviere den manuellen Fallback unten nur zur Fehlersuche.",
         "data": {
           "fallback": "Manuellen Fallback verwenden"
         }
