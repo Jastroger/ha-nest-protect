@@ -4,6 +4,8 @@ import datetime
 import json
 from types import SimpleNamespace
 
+import pytest
+
 from custom_components.nest_protect.auth_bridge import (
     NestProtectAuthBridgeView,
     cleanup_expired_auth_bridge_sessions,
@@ -316,8 +318,9 @@ def test_complete_auth_bridge_session_rejects_expired():
     )
 
 
+@pytest.mark.parametrize("foreground", [True, False])
 async def test_mobile_bridge_flow_uses_native_link_and_waits_for_callback(
-    hass, hass_client_no_auth
+    hass, hass_client_no_auth, foreground
 ):
     """A clean install opens the bridge and advances only after a valid callback."""
     from unittest.mock import patch
@@ -366,16 +369,25 @@ async def test_mobile_bridge_flow_uses_native_link_and_waits_for_callback(
     assert pending["type"] is FlowResultType.EXTERNAL_STEP
     assert pending["url"] == result["url"]
 
-    response = await client.post(
-        callback, json={**payload, "secret": launch["secret"][0]}
-    )
-    assert response.status == 200
-    with patch.object(
-        ConfigFlow,
-        "async_validate_input",
-        return_value=[VALID_ISSUE_TOKEN, VALID_COOKIES, "nest@example.test"],
-    ) as validate:
-        result = await flow.async_configure(flow_id)
-        assert result["type"] is FlowResultType.CREATE_ENTRY
-        assert result["data"][CONF_COOKIES] == VALID_COOKIES
+    with (
+        patch("custom_components.nest_protect.auth_bridge.async_call_later") as timer,
+        patch.object(
+            ConfigFlow,
+            "async_validate_input",
+            return_value=[VALID_ISSUE_TOKEN, VALID_COOKIES, "nest@example.test"],
+        ) as validate,
+    ):
+        response = await client.post(
+            callback, json={**payload, "secret": launch["secret"][0]}
+        )
+        assert response.status == 200
+        timer.assert_called_once()
+        finish_if_pending = timer.call_args.args[2]
+        if foreground:
+            result = await flow.async_configure(flow_id)
+            assert result["type"] is FlowResultType.CREATE_ENTRY
+
+        await finish_if_pending(datetime.datetime.now(tz=datetime.UTC))
         validate.assert_awaited_once()
+        entry = hass.config_entries.async_entries(DOMAIN)[0]
+        assert entry.data[CONF_COOKIES] == VALID_COOKIES
