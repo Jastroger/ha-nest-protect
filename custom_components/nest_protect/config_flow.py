@@ -212,25 +212,17 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         """Choose the Auth Bridge installation type."""
-        if user_input is not None:
-            if user_input["mode"] == "standalone":
-                return await self.async_step_auth_bridge_standalone()
-            return self._start_auth_bridge(
-                "/hassio/ingress/nest_protect_auth_bridge/", addon=True
-            )
-
-        return self.async_show_form(
+        return self.async_show_menu(
             step_id="auth_bridge",
-            data_schema=vol.Schema(
-                {
-                    vol.Required("mode", default="standalone"): SelectSelector(
-                        SelectSelectorConfig(
-                            options=["standalone", "addon"],
-                            translation_key="auth_bridge_mode",
-                        )
-                    )
-                }
-            ),
+            menu_options=["auth_bridge_addon", "auth_bridge_standalone"],
+        )
+
+    async def async_step_auth_bridge_addon(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Open the bridge installed through Home Assistant."""
+        return self._start_auth_bridge(
+            "/hassio/ingress/nest_protect_auth_bridge/", addon=True
         )
 
     async def async_step_auth_bridge_standalone(

@@ -14,7 +14,11 @@ async def test_auth_bridge_translations(hass: HomeAssistant, language: str) -> N
         "config": (
             "step.auth_method.description",
             "step.auth_method.data.method",
-            "step.auth_bridge.data.mode",
+            "step.auth_bridge.title",
+            "step.auth_bridge.menu_options.auth_bridge_addon",
+            "step.auth_bridge.menu_options.auth_bridge_standalone",
+            "step.auth_bridge.menu_option_descriptions.auth_bridge_addon",
+            "step.auth_bridge.menu_option_descriptions.auth_bridge_standalone",
             "step.auth_bridge_standalone.data.bridge_url",
             "step.auth_bridge_standalone.data_description.bridge_url",
             "step.auth_bridge_login.description",
@@ -25,8 +29,6 @@ async def test_auth_bridge_translations(hass: HomeAssistant, language: str) -> N
             "auth_method.options.bridge",
             "auth_method.options.extension",
             "auth_method.options.manual",
-            "auth_bridge_mode.options.standalone",
-            "auth_bridge_mode.options.addon",
         ),
     }
     for category, paths in categories.items():

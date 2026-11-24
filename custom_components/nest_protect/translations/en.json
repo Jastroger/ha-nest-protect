@@ -50,10 +50,14 @@
         }
       },
       "auth_bridge": {
-        "title": "Choose your Auth Bridge",
-        "description": "Choose Standalone Docker if Home Assistant runs in Docker. Choose Add-on for a bridge installed in Home Assistant OS.",
-        "data": {
-          "mode": "Bridge type"
+        "title": "How do you run Home Assistant?",
+        "menu_options": {
+          "auth_bridge_addon": "Home Assistant OS / Supervised",
+          "auth_bridge_standalone": "Home Assistant Container / Core"
+        },
+        "menu_option_descriptions": {
+          "auth_bridge_addon": "Sign in through the Nest Protect add-on in Home Assistant.",
+          "auth_bridge_standalone": "Sign in through the Auth Bridge running in a separate Docker container."
         }
       },
       "auth_bridge_standalone": {
@@ -214,12 +218,6 @@
         "bridge": "Auth Bridge (phone or computer)",
         "extension": "Browser extension (computer)",
         "manual": "Enter credentials manually"
-      }
-    },
-    "auth_bridge_mode": {
-      "options": {
-        "standalone": "Standalone Docker",
-        "addon": "Home Assistant add-on"
       }
     }
   }

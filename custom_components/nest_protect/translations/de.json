@@ -51,10 +51,14 @@
         }
       },
       "auth_bridge": {
-        "title": "Wo läuft deine Anmeldung?",
-        "description": "Wähle „Docker“, wenn du die Bridge als eigenen Container betreibst. Bei einer Installation als App in Home Assistant OS wählst du „Home Assistant OS“.",
-        "data": {
-          "mode": "Installation der Bridge"
+        "title": "Wie läuft dein Home Assistant?",
+        "menu_options": {
+          "auth_bridge_addon": "Home Assistant OS / Supervised",
+          "auth_bridge_standalone": "Home Assistant Container / Core"
+        },
+        "menu_option_descriptions": {
+          "auth_bridge_addon": "Melde dich über die Nest Protect App in Home Assistant an.",
+          "auth_bridge_standalone": "Melde dich über die Auth Bridge in einem separaten Docker-Container an."
         }
       },
       "auth_bridge_standalone": {
@@ -94,12 +98,6 @@
         "bridge": "Anmeldung im Browser (empfohlen am Handy)",
         "extension": "Browser-Erweiterung (Computer)",
         "manual": "Anmeldedaten manuell eingeben"
-      }
-    },
-    "auth_bridge_mode": {
-      "options": {
-        "standalone": "Docker",
-        "addon": "Home Assistant OS"
       }
     }
   }

@@ -50,10 +50,14 @@
         }
       },
       "auth_bridge": {
-        "title": "Choisir le pont d’authentification",
-        "description": "Choisissez Docker autonome pour Home Assistant dans Docker, ou Module complémentaire pour le pont installé dans Home Assistant OS.",
-        "data": {
-          "mode": "Type de pont"
+        "title": "Comment Home Assistant est-il installé ?",
+        "menu_options": {
+          "auth_bridge_addon": "Home Assistant OS / Supervised",
+          "auth_bridge_standalone": "Home Assistant Container / Core"
+        },
+        "menu_option_descriptions": {
+          "auth_bridge_addon": "Connectez-vous via le module complémentaire Nest Protect dans Home Assistant.",
+          "auth_bridge_standalone": "Connectez-vous via le pont d’authentification dans un conteneur Docker séparé."
         }
       },
       "auth_bridge_standalone": {
@@ -93,12 +97,6 @@
         "bridge": "Pont d’authentification (téléphone ou ordinateur)",
         "extension": "Extension de navigateur (ordinateur)",
         "manual": "Saisir les identifiants manuellement"
-      }
-    },
-    "auth_bridge_mode": {
-      "options": {
-        "standalone": "Docker autonome",
-        "addon": "Module complémentaire Home Assistant"
       }
     }
   }

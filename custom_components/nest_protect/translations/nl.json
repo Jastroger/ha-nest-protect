@@ -50,10 +50,14 @@
         }
       },
       "auth_bridge": {
-        "title": "Kies de Auth Bridge",
-        "description": "Kies Zelfstandige Docker voor Home Assistant in Docker of Add-on voor de bridge in Home Assistant OS.",
-        "data": {
-          "mode": "Type bridge"
+        "title": "Hoe draait Home Assistant?",
+        "menu_options": {
+          "auth_bridge_addon": "Home Assistant OS / Supervised",
+          "auth_bridge_standalone": "Home Assistant Container / Core"
+        },
+        "menu_option_descriptions": {
+          "auth_bridge_addon": "Meld je aan via de Nest Protect-add-on in Home Assistant.",
+          "auth_bridge_standalone": "Meld je aan via de Auth Bridge in een aparte Docker-container."
         }
       },
       "auth_bridge_standalone": {
@@ -193,12 +197,6 @@
         "bridge": "Auth Bridge (telefoon of computer)",
         "extension": "Browserextensie (computer)",
         "manual": "Inloggegevens handmatig invoeren"
-      }
-    },
-    "auth_bridge_mode": {
-      "options": {
-        "standalone": "Zelfstandige Docker",
-        "addon": "Home Assistant-add-on"
       }
     }
   }
