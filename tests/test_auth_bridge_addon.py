@@ -224,58 +224,88 @@ def test_callback_non_ok_json_is_treated_as_failure(monkeypatch) -> None:
     assert not (isinstance(resp_json, dict) and resp_json.get("ok") is True)
 
 
-def test_cookie_capture_accepts_any_accounts_google_request() -> None:
-    """Cookie capture should fire for any accounts.google.com request, not only oauth2/iframe."""
-    addon_main._set_state(
-        status=addon_main.WAITING_FOR_LOGIN,
-        cookies="",
-        cancel_requested=False,
+def test_oauth_capture_uses_full_request_headers(monkeypatch) -> None:
+    """Playwright exposes the Cookie header only through its full header API."""
+    monkeypatch.setattr(
+        addon_main, "state", {"issue_token": "", "cookies": "", "cancel_requested": False}
     )
-
-    # Simulate a non-oauth2/iframe accounts.google.com request (e.g. iframerpc issueToken)
-    issue_token_url = VALID_ISSUE_TOKEN
 
     class FakeRequest:
-        def __init__(self, url, cookie):
+        headers = {}
+
+        def __init__(self, url, cookies=""):
             self.url = url
-            self._cookie = cookie
+            self.cookies = cookies
 
-        @property
-        def headers(self):
-            return {"cookie": self._cookie}
+        def all_headers(self):
+            return {"cookie": self.cookies}
 
-    # Manually invoke the cookie-capture logic as it appears in _capture_flow
-    from urllib.parse import urlsplit
+    addon_main._capture_oauth_request(
+        FakeRequest("https://accounts.google.com/ServiceLogin", VALID_COOKIES)
+    )
+    addon_main._capture_oauth_request(
+        FakeRequest("https://example.com/o/oauth2/iframe", VALID_COOKIES)
+    )
+    assert addon_main.state["cookies"] == ""
 
-    request_url = issue_token_url
-    hostname = (urlsplit(request_url).hostname or "").lower()
-
-    captured = {}
-    if hostname == "accounts.google.com":
-        cookie_header = VALID_COOKIES
-        if cookie_header and addon_main._is_valid_cookie_header(cookie_header):
-            captured["cookies"] = cookie_header
-
-    assert captured.get("cookies") == VALID_COOKIES, (
-        "Cookies should be captured from any accounts.google.com request"
+    addon_main._capture_oauth_request(FakeRequest(VALID_ISSUE_TOKEN))
+    addon_main._capture_oauth_request(
+        FakeRequest("https://accounts.google.com/o/oauth2/iframe", VALID_COOKIES)
+    )
+    assert addon_main._wait_for_capture(timeout_seconds=0) == (
+        VALID_ISSUE_TOKEN,
+        VALID_COOKIES,
     )
 
 
-def test_cookie_capture_not_limited_to_oauth2_iframe() -> None:
-    """Cookie capture must not gate on oauth2/iframe URL substring."""
-    # A plain accounts.google.com request that does NOT contain oauth2/iframe
-    # should still trigger cookie capture.
-    plain_google_url = "https://accounts.google.com/ServiceLogin"
-    assert "oauth2/iframe" not in plain_google_url
+def test_reset_cannot_start_a_second_browser_during_cleanup(monkeypatch) -> None:
+    """Only one worker owns the browser until cleanup has finished."""
+    monkeypatch.setattr(addon_main, "state", {**addon_main.state, "running": False})
+    monkeypatch.setattr(addon_main, "_extract_launch_values", lambda: (
+        "test-session", "test-secret", "http://ha.example.test:8123/api/nest_protect/auth_bridge/test-session",
+    ))
+    monkeypatch.setattr(addon_main, "_build_callback_request", lambda url: (url, {}))
+    started = []
 
-    from urllib.parse import urlsplit
-    hostname = (urlsplit(plain_google_url).hostname or "").lower()
-    assert hostname == "accounts.google.com"
+    class DelayedThread:
+        def __init__(self, *, target, args, daemon):
+            self.run = lambda: target(*args)
 
-    if hostname == "accounts.google.com":
-        cookie_header = VALID_COOKIES
-        captured = addon_main._is_valid_cookie_header(cookie_header)
-    else:
-        captured = False
+        def start(self):
+            started.append(self.run)
 
-    assert captured is True, "Valid cookies from accounts.google.com should pass validation"
+    monkeypatch.setattr(addon_main, "threading", SimpleNamespace(Thread=DelayedThread))
+    addon_main.start()
+    addon_main.start()
+    addon_main.reset()
+    addon_main.start()
+
+    assert len(started) == 1
+    assert addon_main.state["running"] is True
+    assert addon_main.state["cancel_requested"] is True
+
+    def fail_to_make_profile(*args, **kwargs):
+        raise OSError("test profile creation failed")
+
+    monkeypatch.setattr(addon_main.tempfile, "mkdtemp", fail_to_make_profile)
+    started[0]()
+    assert addon_main.state["running"] is False
+    assert addon_main.state["status"] == addon_main.WAITING_FOR_LOGIN
+    assert addon_main.state["secret"] == ""
+
+    addon_main.start()
+    assert len(started) == 2
+
+
+
+def test_new_browser_profile_has_only_nest_cookie_exception(tmp_path) -> None:
+    """A fresh capture enables third-party cookies for Nest before Chromium starts."""
+    import json
+
+    addon_main._prepare_chromium_profile(str(tmp_path))
+    preferences = json.loads((tmp_path / "Default" / "Preferences").read_text())
+    profile = preferences["profile"]
+    assert profile["cookie_controls_mode"] == 1
+    assert profile["content_settings"]["exceptions"]["cookies"] == {
+        "*,https://home.nest.com:443": {"setting": 1},
+    }

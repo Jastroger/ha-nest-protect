@@ -6,11 +6,15 @@ from dataclasses import dataclass
 from typing import Any
 
 from homeassistant.components.switch import SwitchEntity, SwitchEntityDescription
+from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import EntityCategory
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from . import HomeAssistantNestProtectData
-from .const import DOMAIN, LOGGER
-from .entity import NestDescriptiveEntity
+from . import NestProtectConfigEntry
+from .const import LOGGER
+from .entity import NestUpdatableEntity
+
+PARALLEL_UPDATES = 1
 
 
 @dataclass
@@ -36,52 +40,62 @@ PRESET_TO_BRIGHTNESS = {v: k for k, v in BRIGHTNESS_TO_PRESET.items()}
 SWITCH_DESCRIPTIONS: list[SwitchEntityDescription] = [
     NestProtectSwitchDescription(
         key="night_light_enable",
-        name="Pathlight",
+        translation_key="night_light_enable",
         entity_category=EntityCategory.CONFIG,
         icon="mdi:weather-night",
     ),
     NestProtectSwitchDescription(
         key="ntp_green_led_enable",
-        name="Nightly Promise",
+        translation_key="ntp_green_led_enable",
         entity_category=EntityCategory.CONFIG,
         icon="mdi:led-off",
     ),
     NestProtectSwitchDescription(
         key="heads_up_enable",
-        name="Heads-Up",
+        translation_key="heads_up_enable",
         entity_category=EntityCategory.CONFIG,
         icon="mdi:exclamation-thick",
     ),
     NestProtectSwitchDescription(
         key="steam_detection_enable",
-        name="Steam Check",
+        translation_key="steam_detection_enable",
         entity_category=EntityCategory.CONFIG,
         icon="mdi:pot-steam",
     ),
 ]
 
 
-async def async_setup_entry(hass, entry, async_add_devices):
+async def async_setup_entry(
+    hass: HomeAssistant,
+    entry: NestProtectConfigEntry,
+    async_add_devices: AddEntitiesCallback,
+) -> None:
     """Set up the Nest Protect sensors from a config entry."""
 
-    data: HomeAssistantNestProtectData = hass.data[DOMAIN][entry.entry_id]
+    data = entry.runtime_data
     entities: list[NestProtectSwitch] = []
 
-    SUPPORTED_KEYS: dict[str, NestProtectSwitchDescription] = {
+    supported_keys: dict[str, NestProtectSwitchDescription] = {
         description.key: description for description in SWITCH_DESCRIPTIONS
     }
 
     for device in data.devices.values():
         for key in device.value:
-            if description := SUPPORTED_KEYS.get(key):
+            if description := supported_keys.get(key):
                 entities.append(
-                    NestProtectSwitch(device, description, data.areas, data.client)
+                    NestProtectSwitch(
+                        device,
+                        description,
+                        data.areas,
+                        data.client,
+                        data.session_manager,
+                    )
                 )
 
     async_add_devices(entities)
 
 
-class NestProtectSwitch(NestDescriptiveEntity, SwitchEntity):
+class NestProtectSwitch(NestUpdatableEntity, SwitchEntity):
     """Representation of a Nest Protect Switch."""
 
     entity_description: NestProtectSwitchDescription
@@ -89,9 +103,7 @@ class NestProtectSwitch(NestDescriptiveEntity, SwitchEntity):
     @property
     def is_on(self) -> bool | None:
         """Return True if entity is on."""
-        state = self.bucket.value.get(self.entity_description.key)
-
-        return state
+        return self.bucket.value.get(self.entity_description.key)
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn the entity on."""
@@ -105,19 +117,7 @@ class NestProtectSwitch(NestDescriptiveEntity, SwitchEntity):
             }
         ]
 
-        if not self.client.nest_session or self.client.nest_session.is_expired():
-            if not self.client.auth or self.client.auth.is_expired():
-                await self.client.get_access_token()
-
-            await self.client.authenticate(self.client.auth.access_token)
-
-        result = await self.client.update_objects(
-            self.client.nest_session.access_token,
-            self.client.nest_session.userid,
-            self.client.transport_url,
-            objects,
-        )
-
+        result = await self._async_update_objects(objects)
         LOGGER.debug(result)
 
     async def async_turn_off(self, **kwargs: Any) -> None:
@@ -132,17 +132,5 @@ class NestProtectSwitch(NestDescriptiveEntity, SwitchEntity):
             }
         ]
 
-        if not self.client.nest_session or self.client.nest_session.is_expired():
-            if not self.client.auth or self.client.auth.is_expired():
-                await self.client.get_access_token()
-
-            await self.client.authenticate(self.client.auth.access_token)
-
-        result = await self.client.update_objects(
-            self.client.nest_session.access_token,
-            self.client.nest_session.userid,
-            self.client.transport_url,
-            objects,
-        )
-
+        result = await self._async_update_objects(objects)
         LOGGER.debug(result)

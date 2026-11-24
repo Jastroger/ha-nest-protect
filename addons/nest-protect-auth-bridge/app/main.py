@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import os
+from pathlib import Path
 import shutil
 import subprocess
 import tempfile
@@ -24,7 +26,6 @@ MODE_STANDALONE = "standalone"
 BROWSER_STARTING = "browser_starting"
 BROWSER_READY = "browser_ready"
 WAITING_FOR_LOGIN = "waiting_for_login"
-GOOGLE_LOGIN_SEEN = "google_login_seen"
 OAUTH_IFRAME_SEEN = "oauth_iframe_seen"
 ISSUE_TOKEN_CAPTURED = "issue_token_captured"
 COOKIE_HEADER_CAPTURED = "cookie_header_captured"
@@ -50,6 +51,7 @@ state: dict[str, Any] = {
     "error": "",
     "running": False,
     "cancel_requested": False,
+    "reset_requested": False,
 }
 
 
@@ -78,10 +80,6 @@ def _set_state(**kwargs: Any) -> None:
         state.update(kwargs)
 
 
-def _clear_sensitive_state() -> None:
-    _set_state(session_id="", secret="", callback_url="", issue_token="", cookies="")
-
-
 def _is_issue_token_url(url: str) -> bool:
     return (
         url.startswith("https://accounts.google.com/o/oauth2/iframerpc")
@@ -94,6 +92,40 @@ def _is_valid_cookie_header(cookies: str) -> bool:
         return False
     markers = ("APISID=", "SAPISID=", "HSID=", "SSID=", "SID=")
     return any(marker in cookies for marker in markers)
+
+
+def _capture_oauth_request(playwright_request: Any) -> None:
+    """Capture the two parts of the Nest session from Google OAuth requests."""
+    request_url = playwright_request.url
+    parsed = urlsplit(request_url)
+    if parsed.scheme != "https" or parsed.hostname != "accounts.google.com":
+        return
+
+    issue_token_seen = _is_issue_token_url(request_url)
+    iframe_seen = parsed.path.rstrip("/").endswith("/oauth2/iframe")
+    if not (issue_token_seen or iframe_seen):
+        return
+
+    # Playwright Request.headers intentionally omits cookie-related headers.
+    cookie_header = playwright_request.all_headers().get("cookie", "")
+    updates: dict[str, Any] = {}
+    if cookie_header and _is_valid_cookie_header(cookie_header):
+        updates.update(
+            cookies=cookie_header,
+            status=COOKIE_HEADER_CAPTURED,
+            message="Cookie header captured",
+        )
+    elif iframe_seen:
+        updates.update(
+            status=OAUTH_IFRAME_SEEN, message="OAuth iframe request detected"
+        )
+    if issue_token_seen:
+        updates.update(
+            issue_token=request_url,
+            status=ISSUE_TOKEN_CAPTURED,
+            message="issueToken request captured",
+        )
+    _set_state(**updates)
 
 
 def _is_valid_callback_url(callback_url: str) -> bool:
@@ -207,21 +239,34 @@ def _wait_for_capture(
         time.sleep(poll_interval_seconds)
 
 
-def _capture_flow(session_id: str, secret: str, callback_url: str) -> None:
-    _set_state(
-        status=BROWSER_STARTING,
-        message="Starting browser",
-        issue_token="",
-        cookies="",
-        error="",
-        running=True,
-        cancel_requested=False,
+def _prepare_chromium_profile(profile_dir: str) -> None:
+    """Allow third-party cookies only on the Nest top-level site."""
+    preferences = Path(profile_dir) / "Default" / "Preferences"
+    preferences.parent.mkdir()
+    preferences.write_text(
+        json.dumps({
+            "profile": {
+                "cookie_controls_mode": 1,  # Block third-party cookies by default.
+                "content_settings": {
+                    "exceptions": {
+                        "cookies": {
+                            "*,https://home.nest.com:443": {"setting": 1},
+                        },
+                    },
+                },
+            },
+        }),
+        encoding="utf-8",
     )
 
-    profile_dir = tempfile.mkdtemp(prefix="nest-auth-bridge-")
+
+def _capture_flow(session_id: str, secret: str, callback_url: str) -> None:
+    profile_dir = None
     context = None
 
     try:
+        profile_dir = tempfile.mkdtemp(prefix="nest-auth-bridge-")
+        _prepare_chromium_profile(profile_dir)
         from playwright.sync_api import Error, sync_playwright
 
         timeout_seconds = int(
@@ -256,33 +301,13 @@ def _capture_flow(session_id: str, secret: str, callback_url: str) -> None:
 
             def google_rejected_embedded_browser() -> bool:
                 try:
-                    body_text = page.locator("body").inner_text(timeout=500)
+                    active_page = context.pages[-1] if context.pages else page
+                    body_text = active_page.locator("body").inner_text(timeout=500)
                 except Error:
                     return False
                 return "This browser or app may not be secure" in body_text
 
-            def handle_request(playwright_request: Any) -> None:
-                request_url = playwright_request.url
-                hostname = (urlsplit(request_url).hostname or "").lower()
-                if hostname == "accounts.google.com":
-                    _set_state(status=GOOGLE_LOGIN_SEEN, message="Google login detected")
-                    cookie_header = playwright_request.headers.get("cookie")
-                    if cookie_header and _is_valid_cookie_header(cookie_header):
-                        _set_state(
-                            status=COOKIE_HEADER_CAPTURED,
-                            cookies=cookie_header,
-                            message="Cookie header captured",
-                        )
-                if "oauth2/iframe" in request_url:
-                    _set_state(status=OAUTH_IFRAME_SEEN, message="OAuth iframe request detected")
-                if _is_issue_token_url(request_url):
-                    _set_state(
-                        status=ISSUE_TOKEN_CAPTURED,
-                        issue_token=request_url,
-                        message="issueToken request captured",
-                    )
-
-            page.on("request", handle_request)
+            context.on("request", _capture_oauth_request)
             page.goto(NEST_LOGIN_URL, wait_until="domcontentloaded")
             _set_state(status=WAITING_FOR_LOGIN, message="Complete Google/Nest sign-in")
 
@@ -334,9 +359,15 @@ def _capture_flow(session_id: str, secret: str, callback_url: str) -> None:
                 context.close()
             except Exception:
                 LOGGER.debug("Failed closing browser context", exc_info=True)
-        shutil.rmtree(profile_dir, ignore_errors=True)
-        _clear_sensitive_state()
-        _set_state(running=False)
+        if profile_dir is not None:
+            shutil.rmtree(profile_dir, ignore_errors=True)
+        with state_lock:
+            if state["reset_requested"]:
+                state.update(status=WAITING_FOR_LOGIN, message="Idle", error="")
+            state.update(
+                session_id="", secret="", callback_url="", issue_token="", cookies="",
+                running=False, cancel_requested=False, reset_requested=False,
+            )
 
 
 @app.get("/")
@@ -344,8 +375,11 @@ def index() -> str:
     return render_template("index.html")
 
 
-@app.route("/start", methods=["POST", "GET"])
+@app.post("/start")
 def start() -> Any:
+    with state_lock:
+        if state["running"]:
+            return redirect("./")
     session_id, secret, callback_url = _extract_launch_values()
 
     if not session_id or not secret:
@@ -375,52 +409,63 @@ def start() -> Any:
         return redirect("./")
 
     with state_lock:
-        if state.get("running"):
+        if state["running"]:
             return redirect("./")
 
-    _set_state(
-        session_id=session_id,
-        secret=secret,
-        callback_url=callback_url,
-        status=BROWSER_STARTING,
-        message="Starting browser",
-        error="",
-        cancel_requested=False,
-    )
+        # Reserve the worker slot before releasing the lock or creating the thread.
+        state.update(
+            session_id=session_id,
+            secret=secret,
+            callback_url=callback_url,
+            status=BROWSER_STARTING,
+            message="Starting browser",
+            issue_token="",
+            cookies="",
+            error="",
+            running=True,
+            cancel_requested=False,
+            reset_requested=False,
+        )
 
-    thread = threading.Thread(
-        target=_capture_flow,
-        args=(session_id, secret, callback_url),
-        daemon=True,
-    )
-    thread.start()
-
+    try:
+        threading.Thread(
+            target=_capture_flow,
+            args=(session_id, secret, callback_url),
+            daemon=True,
+        ).start()
+    except RuntimeError:
+        with state_lock:
+            state.update(
+                status=FAILED, message="Could not start the browser", error="",
+                session_id="", secret="", callback_url="", running=False,
+                cancel_requested=False, reset_requested=False,
+            )
     return redirect("./")
 
 
 @app.post("/cancel")
 def cancel() -> Any:
     with state_lock:
-        running = bool(state.get("running"))
-    if running:
-        _set_state(cancel_requested=True, message="Cancelling login", error="")
-    else:
-        _set_state(cancel_requested=False)
+        if state["running"]:
+            state.update(cancel_requested=True, message="Cancelling login", error="")
     return redirect("./")
 
 
 @app.post("/reset")
 def reset() -> Any:
-    _set_state(
-        status=WAITING_FOR_LOGIN,
-        message="Idle",
-        issue_token="",
-        cookies="",
-        error="",
-        running=False,
-        cancel_requested=False,
-    )
-    _clear_sensitive_state()
+    with state_lock:
+        if state["running"]:
+            # The existing capture still owns the browser until its cleanup ends.
+            state.update(
+                cancel_requested=True, reset_requested=True,
+                message="Closing the browser before starting over", error="",
+            )
+        else:
+            state.update(
+                status=WAITING_FOR_LOGIN, message="Idle", error="", session_id="",
+                secret="", callback_url="", issue_token="", cookies="",
+                cancel_requested=False, reset_requested=False,
+            )
     return redirect("./")
 
 
@@ -431,6 +476,7 @@ def status() -> Any:
             "status": state["status"],
             "message": state["message"],
             "running": state["running"],
+            "resetting": state["reset_requested"],
             "session_id": _mask_secret(state["session_id"]),
             "error": _mask_secret(state["error"]),
         }

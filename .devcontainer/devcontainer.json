@@ -1,7 +1,23 @@
-// See https://aka.ms/vscode-remote/devcontainer.json for format details.
+// For format details, see https://aka.ms/devcontainer.json. For config options, see the
+// README at: https://github.com/devcontainers/templates/tree/main/src/python
 {
-	"image": "mcr.microsoft.com/devcontainers/python:1-3.12-bullseye",
-	"name": "ha-nest-protect",
+	"name": "Python 3.14 (ha-nest-protect)",
+	// Or use a Dockerfile or Docker Compose file. More info: https://containers.dev/guide/dockerfile
+	"image": "mcr.microsoft.com/devcontainers/python:3-3.14-trixie",
+	// Features to add to the dev container. More info: https://containers.dev/features.
+	"features": {
+		"ghcr.io/devcontainers/features/github-cli:1": {},
+		"ghcr.io/va-h/devcontainers-features/uv:1": {},
+		"ghcr.io/devcontainers-extra/features/apt-packages:1": {
+            "packages": "ffmpeg,libturbojpeg0,libpcap-dev"
+        },
+		"ghcr.io/devcontainers-extra/features/gh-release:1": {
+			"repo": "AlexxIT/go2rtc",
+			"binaryNames": "go2rtc",
+			"version": "1.9.14"
+		}
+	},
+	// Use 'forwardPorts' to make a list of ports inside the container available locally.
 	"forwardPorts": [
 		8123
 	],
@@ -11,31 +27,42 @@
 			"onAutoForward": "openBrowserOnce"
 		}
 	},
-	"features": {
-		"ghcr.io/devcontainers-contrib/features/ffmpeg-apt-get:1": {}
-	},
-	"postCreateCommand": "sudo apt-get update && sudo apt-get install -y libturbojpeg0 libpcap-dev && pip install -r requirements_dev.txt && pre-commit install && pre-commit install-hooks",
+	// Use 'postCreateCommand' to run commands after the container is created.
+	"postCreateCommand": "uv sync --all-groups && uv run prek install",
 	"containerEnv": {
 		"DEVCONTAINER": "1"
 	},
-	"remoteUser": "vscode",
+	// Configure tool-specific properties.
 	"customizations": {
 		"vscode": {
 			"extensions": [
-				"ms-python.vscode-pylance",
 				"ms-python.python",
+				"ms-python.vscode-pylance",
+				"charliermarsh.ruff",
 				"redhat.vscode-yaml",
 				"esbenp.prettier-vscode",
 				"GitHub.vscode-pull-request-github",
-				"GitHub.copilot"
+				"GitHub.copilot",
+				"github.vscode-github-actions"
 			],
 			"settings": {
 				"python.pythonPath": "/usr/local/bin/python",
-				"editor.formatOnPaste": false,
 				"editor.formatOnSave": true,
-				"editor.formatOnType": true,
-				"files.trimTrailingWhitespace": true
+				"files.trimTrailingWhitespace": true,
+				"[python]": {
+					"editor.defaultFormatter": "charliermarsh.ruff",
+					"editor.codeActionsOnSave": {
+						"source.organizeImports.ruff": "explicit"
+					}
+				},
+				"python.testing.pytestArgs": [
+					"tests"
+				],
+				"python.testing.unittestEnabled": false,
+				"python.testing.pytestEnabled": true
 			}
 		}
 	}
+	// Uncomment to connect as root instead. More info: https://aka.ms/dev-containers-non-root.
+	// "remoteUser": "root"
 }

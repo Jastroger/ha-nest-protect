@@ -1,12 +1,13 @@
 {
-    "name": "Nest Protect (Jastroger Fork)",
+    "name": "Nest Protect",
     "domains": [
         "binary_sensor",
+        "lock",
         "sensor",
         "select",
         "switch"
     ],
-    "homeassistant": "2024.12.1",
+    "homeassistant": "2026.10.0",
     "render_readme": "true",
     "iot_class": "Cloud Push"
 }
