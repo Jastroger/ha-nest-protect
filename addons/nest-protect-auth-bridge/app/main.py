@@ -24,7 +24,6 @@ MODE_STANDALONE = "standalone"
 BROWSER_STARTING = "browser_starting"
 BROWSER_READY = "browser_ready"
 WAITING_FOR_LOGIN = "waiting_for_login"
-GOOGLE_LOGIN_SEEN = "google_login_seen"
 OAUTH_IFRAME_SEEN = "oauth_iframe_seen"
 ISSUE_TOKEN_CAPTURED = "issue_token_captured"
 COOKIE_HEADER_CAPTURED = "cookie_header_captured"
@@ -94,6 +93,40 @@ def _is_valid_cookie_header(cookies: str) -> bool:
         return False
     markers = ("APISID=", "SAPISID=", "HSID=", "SSID=", "SID=")
     return any(marker in cookies for marker in markers)
+
+
+def _capture_oauth_request(playwright_request: Any) -> None:
+    """Capture the two parts of the Nest session from Google OAuth requests."""
+    request_url = playwright_request.url
+    parsed = urlsplit(request_url)
+    if parsed.scheme != "https" or parsed.hostname != "accounts.google.com":
+        return
+
+    issue_token_seen = _is_issue_token_url(request_url)
+    iframe_seen = parsed.path.rstrip("/").endswith("/oauth2/iframe")
+    if not (issue_token_seen or iframe_seen):
+        return
+
+    # Playwright Request.headers intentionally omits cookie-related headers.
+    cookie_header = playwright_request.all_headers().get("cookie", "")
+    updates: dict[str, Any] = {}
+    if cookie_header and _is_valid_cookie_header(cookie_header):
+        updates.update(
+            cookies=cookie_header,
+            status=COOKIE_HEADER_CAPTURED,
+            message="Cookie header captured",
+        )
+    elif iframe_seen:
+        updates.update(
+            status=OAUTH_IFRAME_SEEN, message="OAuth iframe request detected"
+        )
+    if issue_token_seen:
+        updates.update(
+            issue_token=request_url,
+            status=ISSUE_TOKEN_CAPTURED,
+            message="issueToken request captured",
+        )
+    _set_state(**updates)
 
 
 def _is_valid_callback_url(callback_url: str) -> bool:
@@ -261,28 +294,7 @@ def _capture_flow(session_id: str, secret: str, callback_url: str) -> None:
                     return False
                 return "This browser or app may not be secure" in body_text
 
-            def handle_request(playwright_request: Any) -> None:
-                request_url = playwright_request.url
-                hostname = (urlsplit(request_url).hostname or "").lower()
-                if hostname == "accounts.google.com":
-                    _set_state(status=GOOGLE_LOGIN_SEEN, message="Google login detected")
-                    cookie_header = playwright_request.headers.get("cookie")
-                    if cookie_header and _is_valid_cookie_header(cookie_header):
-                        _set_state(
-                            status=COOKIE_HEADER_CAPTURED,
-                            cookies=cookie_header,
-                            message="Cookie header captured",
-                        )
-                if "oauth2/iframe" in request_url:
-                    _set_state(status=OAUTH_IFRAME_SEEN, message="OAuth iframe request detected")
-                if _is_issue_token_url(request_url):
-                    _set_state(
-                        status=ISSUE_TOKEN_CAPTURED,
-                        issue_token=request_url,
-                        message="issueToken request captured",
-                    )
-
-            page.on("request", handle_request)
+            context.on("request", _capture_oauth_request)
             page.goto(NEST_LOGIN_URL, wait_until="domcontentloaded")
             _set_state(status=WAITING_FOR_LOGIN, message="Complete Google/Nest sign-in")
 
