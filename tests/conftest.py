@@ -3,11 +3,10 @@
 from collections.abc import Awaitable, Callable, Generator
 from typing import TypeVar
 
+import pytest
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
 from homeassistant.setup import async_setup_component
-import pycares
-import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.nest_protect.const import DOMAIN
@@ -15,32 +14,29 @@ from custom_components.nest_protect.const import DOMAIN
 # Typing helpers
 ComponentSetup = Callable[[], Awaitable[None]]
 T = TypeVar("T")
-YieldFixture = Generator[T, None, None]
+YieldFixture = Generator[T]
 
 
 REFRESH_TOKEN = "some-refresh-token"
-ISSUE_TOKEN = "some-issue-token"
-COOKIES = "some-cookies"
+ISSUE_TOKEN = (
+    "https://accounts.google.com/o/oauth2/iframerpc?action=issueToken&fake=true"
+)
+COOKIES = "SID=test-sid; HSID=test-hsid; APISID=test-apisid; SAPISID=test-sapisid; SSID=test-ssid"
 
 
 @pytest.fixture(autouse=True)
 def auto_enable_custom_integrations(enable_custom_integrations) -> None:
     """Enable custom integration."""
-    yield
-
-
-@pytest.fixture(scope="session", autouse=True)
-def prime_pycares_thread() -> YieldFixture[None]:
-    """Prime pycares resolver thread once for stable cleanup assertions."""
-    channel = pycares.Channel()
-    yield
-    channel.close()
+    return
 
 
 @pytest.fixture
 async def config_entry_with_refresh_token() -> MockConfigEntry:
     """Fixture to initialize a MockConfigEntry."""
-    return MockConfigEntry(domain=DOMAIN, data={"refresh_token": REFRESH_TOKEN})
+    return MockConfigEntry(
+        domain=DOMAIN,
+        data={"refresh_token": REFRESH_TOKEN, "account_type": "production"},
+    )
 
 
 @pytest.fixture
@@ -67,7 +63,12 @@ async def component_setup_with_refresh_token(
 async def config_entry_with_cookies() -> MockConfigEntry:
     """Fixture to initialize a MockConfigEntry."""
     return MockConfigEntry(
-        domain=DOMAIN, data={"issue_token": ISSUE_TOKEN, "cookies": COOKIES}
+        domain=DOMAIN,
+        data={
+            "issue_token": ISSUE_TOKEN,
+            "cookies": COOKIES,
+            "account_type": "production",
+        },
     )
 
 

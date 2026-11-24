@@ -1,69 +1,204 @@
 {
   "config": {
+    "abort": {
+      "already_configured": "Account is al geconfigureerd",
+      "wrong_account": "The credentials belong to a different Nest account than the one configured. Sign in with the original account, or add the other account as a new entry."
+    },
+    "error": {
+      "cannot_connect": "Kan niet verbinden",
+      "invalid_auth": "Ongeldige authenticatie",
+      "invalid_issue_token": "Ongeldige issue token URL. Moet beginnen met {accounts_url} en de issueToken-actie bevatten.",
+      "invalid_cookies": "Ongeldig cookie-formaat. Zorg ervoor dat je de volledige cookie-header van het oauth2/iframe-verzoek hebt gekopieerd.",
+      "invalid_code": "Ongeldige authenticatiecode. Controleer of je de volledige code van de extensie hebt gekopieerd.",
+      "unknown": "Onverwachte fout",
+      "invalid_auth_bridge_url": "Voer een geldig http://- of https://-adres in zonder inloggegevens, queryparameters of fragment."
+    },
     "step": {
-      "auth_bridge_start": {
-        "title": "Set up Nest Protect",
-        "description": "Nest Protect is not available through Google's official SDM API. This setup uses an Auth Bridge so you can sign in normally without browser developer tools.\n\nHome Assistant OS/Supervised: choose the Auth Bridge Add-on / App.\n\nHome Assistant Container/Core: choose the standalone Docker Auth Bridge.",
+      "user": {
+        "description": "Selecteer je accounttype. De meeste gebruikers moeten Google Account selecteren. Field Test is alleen beschikbaar voor geselecteerde testers in het Google Field Test-programma.",
         "data": {
-          "auth_bridge_mode": "Auth Bridge mode"
+          "account_type": "Accounttype"
+        }
+      },
+      "auth_method": {
+        "title": "Verbind je Nest-account",
+        "description": "Kies op je telefoon de Auth Bridge. Op een computer kun je ook de browserextensie gebruiken.",
+        "data": {
+          "method": "Aanmeldmethode"
+        }
+      },
+      "extension": {
+        "title": "Verbinden met Chrome-extensie",
+        "description": "1. [Download de Nest Auth Helper-extensie]({extension_download_url})\n2. Pak uit en laad in Chrome (chrome://extensions → Ontwikkelaarsmodus → Uitgepakt laden)\n3. Log in op [home.nest.com]({nest_url})\n4. Klik op het extensie-icoon → klik op **Extract Credentials**\n5. Kopieer de code en plak deze hieronder\n\n⚠️ Deel deze code niet — deze bevat je sessiegegevens.",
+        "data": {
+          "auth_code": "Authenticatiecode"
+        },
+        "data_description": {
+          "auth_code": "De code die wordt weergegeven door de Nest Auth Helper-extensie"
+        }
+      },
+      "account_link": {
+        "title": "Verbind je Nest-account (handmatig)",
+        "description": "Volg deze stappen om je inloggegevens te verkrijgen:\n\n1. Open een **normaal** Chrome/Edge-browservenster (niet Incognito — cookies van derden moeten ingeschakeld zijn)\n2. Open **DevTools** (F12) → tabblad **Network** → Vink **Preserve log** aan\n3. Typ `issueToken` in het filtervak\n4. Ga naar [home.nest.com]({nest_url}) en log in met Google\n5. Klik op het `iframerpc`-verzoek en kopieer de volledige **Request URL**\n6. Typ `oauth2/iframe` in het filtervak, klik op het laatste verzoek en kopieer de volledige **Cookie**-headerwaarde\n\n⚠️ Log niet uit bij home.nest.com na het kopiëren van de inloggegevens.",
+        "data": {
+          "issue_token": "Issue Token URL",
+          "cookies": "Cookies"
+        },
+        "data_description": {
+          "issue_token": "Volledige URL beginnend met {issue_token_prefix}...",
+          "cookies": "Volledige cookie-string van de oauth2/iframe-verzoekheaders"
+        }
+      },
+      "auth_bridge": {
+        "title": "Kies de Auth Bridge",
+        "description": "Kies Zelfstandige Docker voor Home Assistant in Docker of Add-on voor de bridge in Home Assistant OS.",
+        "data": {
+          "mode": "Type bridge"
         }
       },
       "auth_bridge_standalone": {
-        "title": "Standalone Docker Auth Bridge",
-        "description": "Enter the base URL of the standalone Auth Bridge you started with Docker, for example `http://192.168.178.104:8099`.\n\nHome Assistant will generate the launch link with the one-time session data. Do not open the bridge manually without the launch link from Home Assistant.",
+        "title": "Voer het adres van de bridge in",
+        "description": "Gebruik een adres dat bereikbaar is vanaf dit apparaat, inclusief http:// of https:// en de poort.",
         "data": {
-          "auth_bridge_standalone_url": "Auth Bridge URL"
-        }
-      },
-      "auth_bridge_wait": {
-        "title": "Waiting for Nest Protect sign-in",
-        "description": "The Auth Bridge is ready. Click the launch link below to start the login session:\\n\\n[{auth_bridge_launch_url}]({auth_bridge_launch_url})\\n\\nHA OS/Supervised: this opens the Auth Bridge add-on/app through Home Assistant Ingress.\\n\\nContainer/Core: this opens your standalone Docker Auth Bridge with the one-time session data.\\n\\nIf this page does not auto-refresh after login, click Submit.\\n\\n**Troubleshooting/developer only:** Ingress URL handling can vary; if needed, open the bridge UI manually and reuse the launch URL query string. Enable the manual fallback option below only for troubleshooting.",
-        "data": {
-          "fallback": "Use manual fallback"
-        }
-      },
-      "wizard_login": {
-        "title": "Nest Protect instellen",
-        "description": "Nest Protect is not exposed through the official Google Nest SDM API, even when your alarms appear in the Google Home app. This integration therefore uses the Nest web authentication flow.\n\nPaste an authentication helper output block into the first field. The helper must capture the real issueToken request URL and Cookie request header locally; Home Assistant itself cannot read Google request headers from your browser.\n\nThe separate Issue Token URL and Cookie header fields are for legacy or emergency fallback use only.",
-        "data": {
-          "wizard_output": "Wizard output block",
-          "issue_token": "Issue Token URL",
-          "cookies": "Cookie header"
+          "bridge_url": "Adres van de bridge"
         },
         "data_description": {
-          "wizard_output": "Paste the complete block printed by a Nest Protect authentication helper.",
-          "issue_token": "Fallback only: full URL beginning with https://accounts.google.com/o/oauth2/iframerpc.",
-          "cookies": "Fallback only: full Cookie request header captured by the wizard or manual troubleshooting."
+          "bridge_url": "Voorbeeld: http://192.168.178.27:8099"
         }
+      },
+      "auth_bridge_login": {
+        "title": "Meld je aan bij Nest",
+        "description": "Open de Auth Bridge, kies Start Login en meld je aan met het Google-account van je Nest Protect-melders. Kom daarna hier terug."
+      },
+      "auth_bridge_finish": {
+        "title": "Het Nest-account kon niet worden verbonden",
+        "description": "Kies Doorgaan om opnieuw een aanmeldmethode te kiezen."
       }
-    },
-    "error": {
-      "cannot_connect": "Connection failed",
-      "network_timeout": "The Google/Nest request timed out. Try again after checking your network connection.",
-      "authentication_rejected": "Google/Nest rejected these credentials. Run the wizard again and do not log out of home.nest.com afterward.",
-      "missing_issue_token": "Issue Token URL is required.",
-      "invalid_issue_token": "Invalid Issue Token URL. Paste the full issueToken request URL, including all query parameters.",
-      "invalid_auth_bridge_url": "Enter an absolute Auth Bridge URL starting with http:// or https://.",
-      "missing_cookie_header": "Cookie header is required.",
-      "incomplete_cookie_header": "Cookie header looks incomplete. Copy the full Cookie header from the oauth2/iframe Network request.",
-      "no_devices_found": "Authentication succeeded, but no Nest Protect devices were found on this account.",
-      "unexpected_response": "Nest returned an unexpected response. Try again or open an issue with redacted diagnostics.",
-      "unknown": "Unexpected error"
-    },
-    "abort": {
-      "already_configured": "Account is already configured",
-      "reauth_successful": "Re-authentication successful"
     }
   },
   "entity": {
+    "binary_sensor": {
+      "co_status": {
+        "name": "CO-status"
+      },
+      "smoke_status": {
+        "name": "Rookstatus"
+      },
+      "heat_status": {
+        "name": "Warmtestatus"
+      },
+      "component_speaker_test_passed": {
+        "name": "Speakertest"
+      },
+      "battery_health_state": {
+        "name": "Batterijstatus"
+      },
+      "is_online": {
+        "name": "Online"
+      },
+      "component_smoke_test_passed": {
+        "name": "Rooktest"
+      },
+      "component_co_test_passed": {
+        "name": "CO-test"
+      },
+      "component_wifi_test_passed": {
+        "name": "Wifi-test"
+      },
+      "component_led_test_passed": {
+        "name": "LED-test"
+      },
+      "component_pir_test_passed": {
+        "name": "PIR-test"
+      },
+      "component_buzzer_test_passed": {
+        "name": "Sirenetest"
+      },
+      "component_hum_test_passed": {
+        "name": "Vochtigheidstest"
+      },
+      "removed_from_base": {
+        "name": "Verwijderd van basis"
+      },
+      "auto_away": {
+        "name": "Aanwezigheid"
+      },
+      "line_power_present": {
+        "name": "Netstroom"
+      }
+    },
+    "sensor": {
+      "battery_level": {
+        "name": "Batterijniveau"
+      },
+      "replace_by_date_utc_secs": {
+        "name": "Vervangdatum"
+      },
+      "last_audio_self_test_end_utc_secs": {
+        "name": "Laatste geluidscheck"
+      },
+      "latest_manual_test_end_utc_secs": {
+        "name": "Laatste veiligheidscontrole"
+      },
+      "current_temperature": {
+        "name": "Temperatuur"
+      },
+      "smoke_status_sensor": {
+        "name": "Rookalarmstatus",
+        "state": {
+          "ok": "OK",
+          "testing": "Testen",
+          "warning": "Waarschuwing",
+          "emergency": "Noodgeval"
+        }
+      },
+      "co_status_sensor": {
+        "name": "CO-alarmstatus",
+        "state": {
+          "ok": "OK",
+          "testing": "Testen",
+          "warning": "Waarschuwing",
+          "emergency": "Noodgeval"
+        }
+      }
+    },
     "select": {
       "night_light_brightness": {
-        "name": "Night Light Brightness",
+        "name": "Lichtpad helderheid",
         "state": {
-          "low": "Low",
-          "medium": "Medium",
-          "high": "High"
+          "low": "Laag",
+          "medium": "Gemiddeld",
+          "high": "Hoog"
         }
+      }
+    },
+    "switch": {
+      "night_light_enable": {
+        "name": "Lichtpad"
+      },
+      "ntp_green_led_enable": {
+        "name": "Nachtwacht"
+      },
+      "heads_up_enable": {
+        "name": "Let op-meldingen"
+      },
+      "steam_detection_enable": {
+        "name": "Stoomcontrole"
+      }
+    }
+  },
+  "selector": {
+    "auth_method": {
+      "options": {
+        "bridge": "Auth Bridge (telefoon of computer)",
+        "extension": "Browserextensie (computer)",
+        "manual": "Inloggegevens handmatig invoeren"
+      }
+    },
+    "auth_bridge_mode": {
+      "options": {
+        "standalone": "Zelfstandige Docker",
+        "addon": "Home Assistant-add-on"
       }
     }
   }

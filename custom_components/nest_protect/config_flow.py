@@ -2,85 +2,58 @@
 
 from __future__ import annotations
 
-from typing import Any, cast
+import base64
+import json
+import re
+from typing import Any
 from urllib.parse import urlencode, urlsplit
 
+import voluptuous as vol
 from aiohttp import ClientError
 from homeassistant import config_entries
-from homeassistant.config_entries import ConfigEntry
-from homeassistant.data_entry_flow import FlowResult
-from homeassistant.helpers.aiohttp_client import async_get_clientsession
-import voluptuous as vol
+from homeassistant.config_entries import SOURCE_REAUTH, SOURCE_RECONFIGURE
+from homeassistant.data_entry_flow import FlowResult, FlowResultType
+from homeassistant.helpers.aiohttp_client import async_create_clientsession
+from homeassistant.helpers.selector import SelectSelector, SelectSelectorConfig
 
 from .auth_bridge import (
     AuthBridgeSession,
-    cleanup_expired_auth_bridge_sessions,
     create_auth_bridge_session,
-    is_auth_bridge_session_expired,
-    is_valid_cookie_header,
-    is_valid_issue_token,
+    get_auth_bridge_store,
+    register_auth_bridge_view,
 )
 from .const import (
-    CONF_ACCESS_TOKEN,
-    CONF_ACCESS_TOKEN_EXPIRES_AT,
     CONF_ACCOUNT_TYPE,
-    CONF_AUTH_BRIDGE_MODE,
-    CONF_AUTH_BRIDGE_SESSION,
-    CONF_AUTH_BRIDGE_STANDALONE_URL,
+    CONF_AUTH_CODE,
     CONF_COOKIES,
     CONF_ISSUE_TOKEN,
     CONF_REFRESH_TOKEN,
-    CONF_WIZARD_OUTPUT,
     DOMAIN,
     LOGGER,
 )
 from .pynest.client import NestClient
 from .pynest.const import NEST_ENVIRONMENTS
-from .pynest.enums import BucketType, Environment
-from .pynest.exceptions import BadCredentialsException
+from .pynest.enums import Environment
+from .pynest.exceptions import BadCredentialsException, NestServiceException
 
-
-class NoNestProtectDevicesFound(Exception):
-    """Raised when authentication works but no supported devices are returned."""
-
-
-class UnexpectedNestResponse(Exception):
-    """Raised when Nest returns a response that cannot be used."""
+DESCRIPTION_PLACEHOLDERS = {
+    "nest_url": "https://home.nest.com",
+    "issue_token_prefix": "https://accounts.google.com/o/oauth2/iframerpc?action=issueToken",
+    "accounts_url": "https://accounts.google.com/",
+    # Pinned to a specific release rather than "latest", which may resolve to a
+    # pre-release that is incompatible with this version of the integration.
+    "extension_download_url": "https://github.com/iMicknl/ha-nest-protect/releases/download/v0.5.0/nest-auth-helper.zip",
+}
 
 
 class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Config flow for Nest Protect."""
 
     VERSION = 3
-    _ISSUE_TOKEN_URL_PREFIX = "https://accounts.google.com/o/oauth2/iframerpc"
-    _AUTH_BRIDGE_INGRESS_PATH = "/hassio/ingress/nest_protect_auth_bridge/"
-    _SUPERVISOR_CORE_URL = "http://supervisor/core/api"
-    _AUTH_BRIDGE_MODE_ADDON = "addon"
-    _AUTH_BRIDGE_MODE_STANDALONE = "standalone"
-    _AUTH_BRIDGE_MODE_LABELS = {
-        _AUTH_BRIDGE_MODE_ADDON: "Home Assistant Add-on / App (HA OS/Supervised)",
-        _AUTH_BRIDGE_MODE_STANDALONE: (
-            "Standalone Docker Auth Bridge (HA Container/Core)"
-        ),
-    }
 
-    _config_entry: ConfigEntry | None = None
     _default_account_type: Environment = Environment.PRODUCTION
     _auth_bridge_session: AuthBridgeSession | None = None
-    _auth_bridge_mode: str = _AUTH_BRIDGE_MODE_ADDON
-    _auth_bridge_standalone_url: str = ""
-
-    @staticmethod
-    def _normalize_issue_token(issue_token: str) -> str:
-        """Normalize issue token input for validation."""
-        return issue_token.strip()
-
-    @staticmethod
-    def _normalize_cookies(cookies: str) -> str:
-        """Normalize cookie header input for validation."""
-        lines = (line.strip() for line in cookies.splitlines())
-        compact = " ".join(line for line in lines if line)
-        return " ".join(compact.split())
+    _auth_bridge_error: str = "invalid_auth"
 
     @staticmethod
     def _validate_issue_token(issue_token: str) -> bool:
@@ -89,7 +62,12 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         The issue token URL should be from Google OAuth iframerpc endpoint
         with the issueToken action parameter.
         """
-        return is_valid_issue_token(issue_token)
+        if not issue_token.startswith("https://accounts.google.com/o/oauth2/iframerpc"):
+            return False
+        if "action=issueToken" not in issue_token:
+            return False
+        # Verify it looks like a proper URL with query parameters
+        return "?" in issue_token
 
     @staticmethod
     def _validate_cookies(cookies: str) -> bool:
@@ -98,396 +76,300 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         Cookies should be substantial, contain key-value pairs,
         and include typical Google auth cookie markers.
         """
-        return is_valid_cookie_header(cookies)
+        if len(cookies) <= 100:
+            return False
+        # Require at least one key=value pair
+        if "=" not in cookies:
+            return False
+        # Common Google auth cookie names expected in exported cookie headers
+        google_auth_markers = ("APISID=", "SAPISID=", "HSID=", "SSID=", "SID=")
+        return any(marker in cookies for marker in google_auth_markers)
 
     @staticmethod
-    def _split_issue_token_and_cookies(
-        issue_token: str, cookies: str
-    ) -> tuple[str, str]:
-        """Split combined issue token input when pasted with cookies.
+    def _normalize_cookies(cookies: str) -> str:
+        """Normalize a pasted cookie header.
 
-        This method attempts to intelligently parse the input to extract
-        both the issue token URL and cookies, even when pasted together.
+        Long header values copied from browser developer tools can contain line
+        wraps, and some browsers include the header name in the copied text.
         """
-        # If cookies field already has content, don't try to split
-        if cookies.strip():
-            return issue_token, cookies
+        cookies = "".join(line.strip() for line in cookies.splitlines())
+        cookies = re.sub(r"^cookie:\s*", "", cookies, flags=re.IGNORECASE)
+        return "; ".join(part.strip() for part in cookies.split(";") if part.strip())
 
-        lines = [line.strip() for line in issue_token.splitlines() if line.strip()]
-        if len(lines) <= 1:
-            return issue_token, cookies
-
-        url_index = next(
-            (
-                index
-                for index, line in enumerate(lines)
-                if line.startswith(ConfigFlow._ISSUE_TOKEN_URL_PREFIX)
-            ),
-            None,
-        )
-        if url_index is None:
-            return issue_token, cookies
-
-        # Extract remaining lines as cookies
-        remaining_lines = [
-            line for index, line in enumerate(lines) if index != url_index
-        ]
-        if remaining_lines:
-            cookies = "\n".join(remaining_lines)
-
-        return lines[url_index], cookies
-
-    @staticmethod
-    def _parse_wizard_output(wizard_output: str) -> tuple[str, str]:
-        """Parse copy-paste output produced by the external auth wizard."""
-        issue_token = ""
-        cookies = ""
-        lines = [line.strip() for line in wizard_output.splitlines() if line.strip()]
-
-        for index, line in enumerate(lines):
-            lower = line.lower()
-            if line.startswith(ConfigFlow._ISSUE_TOKEN_URL_PREFIX):
-                issue_token = line
-                continue
-            if lower.startswith("issue_token="):
-                issue_token = line.split("=", 1)[-1].strip()
-                continue
-            if lower.startswith("issue_token:"):
-                issue_token = line.split(":", 1)[-1].strip()
-                continue
-            if lower.startswith(("issue token url:", "issue token url=")):
-                issue_token = line.split(":", 1)[-1].split("=", 1)[-1].strip()
-                continue
-            if lower in ("issue token url:", "issue token url") and index + 1 < len(lines):
-                issue_token = lines[index + 1]
-                continue
-            if lower.startswith(("cookies=", "cookies:", "cookie header:", "cookie header=")):
-                separator = "=" if "=" in line else ":"
-                cookies = line.split(separator, 1)[-1].strip()
-                continue
-            if lower in ("cookie header:", "cookie header") and index + 1 < len(lines):
-                cookies = lines[index + 1]
-                continue
-
-        if issue_token and not cookies:
-            remaining = [line for line in lines if line != issue_token]
-            cookie_lines = [
-                line
-                for line in remaining
-                if "=" in line and not line.startswith(ConfigFlow._ISSUE_TOKEN_URL_PREFIX)
-            ]
-            if cookie_lines:
-                cookies = "\n".join(cookie_lines)
-
-        return issue_token, cookies
-
-    def _normalize_and_validate_credentials(
-        self, user_input: dict[str, Any]
-    ) -> dict[str, str]:
-        """Normalize and validate issue token and cookies.
-
-        Returns a dict of field-specific error messages.
-        """
-        wizard_output_raw = user_input.get(CONF_WIZARD_OUTPUT, "")
-        issue_token_raw = user_input.get(CONF_ISSUE_TOKEN, "")
-        cookies_raw = user_input.get(CONF_COOKIES, "")
-
-        if wizard_output_raw:
-            wizard_issue_token, wizard_cookies = self._parse_wizard_output(
-                wizard_output_raw
-            )
-            issue_token_raw = issue_token_raw or wizard_issue_token
-            cookies_raw = cookies_raw or wizard_cookies
-
-        issue_token_raw, cookies_raw = self._split_issue_token_and_cookies(
-            issue_token_raw,
-            cookies_raw,
-        )
-        issue_token = self._normalize_issue_token(issue_token_raw)
-        cookies = self._normalize_cookies(cookies_raw)
-
-        user_input[CONF_ISSUE_TOKEN] = issue_token
-        user_input[CONF_COOKIES] = cookies
-        user_input.pop(CONF_WIZARD_OUTPUT, None)
-
-        errors: dict[str, str] = {}
-
-        # Validate issue token first
-        if not issue_token:
-            errors[CONF_WIZARD_OUTPUT if wizard_output_raw else CONF_ISSUE_TOKEN] = (
-                "missing_issue_token"
-            )
-        elif not self._validate_issue_token(issue_token):
-            errors[CONF_WIZARD_OUTPUT if wizard_output_raw else CONF_ISSUE_TOKEN] = (
-                "invalid_issue_token"
-            )
-
-        # Then validate cookies
-        # Note: Cookies field is optional in the UI (users can paste both values
-        # in the issue_token field), but after auto-splitting, cookies are still
-        # required for authentication.
-        if not cookies:
-            errors[CONF_WIZARD_OUTPUT if wizard_output_raw else CONF_COOKIES] = (
-                "missing_cookie_header"
-            )
-        elif not self._validate_cookies(cookies):
-            errors[CONF_WIZARD_OUTPUT if wizard_output_raw else CONF_COOKIES] = (
-                "incomplete_cookie_header"
-            )
-
-        return errors
-
-    def _build_auth_bridge_callback_url(self, session_id: str) -> str:
-        """Build callback URL reachable by add-ons through Supervisor/Core API."""
-        return f"{self._SUPERVISOR_CORE_URL}/nest_protect/auth_bridge/{session_id}"
-
-    @staticmethod
-    def _normalize_auth_bridge_base_url(url: str) -> str:
-        """Normalize a standalone Auth Bridge base URL."""
-        return url.strip().rstrip("/")
-
-    @classmethod
-    def _validate_auth_bridge_base_url(cls, url: str) -> bool:
-        """Validate that a standalone Auth Bridge URL is absolute HTTP(S)."""
-        parsed = urlsplit(cls._normalize_auth_bridge_base_url(url))
-        return parsed.scheme in ("http", "https") and bool(parsed.netloc)
-
-    def _build_auth_bridge_addon_launch_url(
-        self, session: AuthBridgeSession
-    ) -> str:
-        """Build a launch URL for the add-on ingress page."""
-        callback_url = self._build_auth_bridge_callback_url(session.session_id)
-        launch_data = {
-            "session_id": session.session_id,
-            "secret": session.secret,
-            "callback_url": callback_url,
-        }
-        base_url = (
-            (self.hass.config.internal_url or self.hass.config.external_url or "")
-            .rstrip("/")
-        )
-        ingress_url = (
-            f"{base_url}{self._AUTH_BRIDGE_INGRESS_PATH}"
-            if base_url
-            else self._AUTH_BRIDGE_INGRESS_PATH
-        )
-        return ingress_url + "?" + urlencode(launch_data, safe=":/")
-
-    def _build_auth_bridge_standalone_launch_url(
-        self, session: AuthBridgeSession
-    ) -> str:
-        """Build a launch URL for the standalone Docker Auth Bridge."""
-        launch_data = {
-            "session_id": session.session_id,
-            "secret": session.secret,
-        }
-        return (
-            f"{self._auth_bridge_standalone_url}/?"
-            f"{urlencode(launch_data, safe=':/')}"
-        )
-
-    def _build_auth_bridge_launch_url(self, session: AuthBridgeSession) -> str:
-        """Build the launch URL for the selected Auth Bridge mode."""
-        if self._auth_bridge_mode == self._AUTH_BRIDGE_MODE_STANDALONE:
-            return self._build_auth_bridge_standalone_launch_url(session)
-
-        return self._build_auth_bridge_addon_launch_url(session)
-
-    async def async_validate_input(self, user_input: dict[str, Any]) -> dict[str, Any]:
+    async def async_validate_input(self, user_input: dict[str, Any]) -> list:
         """Validate user credentials."""
 
-        environment = user_input.get(CONF_ACCOUNT_TYPE, Environment.PRODUCTION)
-        session = async_get_clientsession(self.hass)
+        environment = user_input[CONF_ACCOUNT_TYPE]
+        session = async_create_clientsession(self.hass)
         client = NestClient(session=session, environment=NEST_ENVIRONMENTS[environment])
 
-        issue_token = None
-        cookies = None
-        refresh_token = None
-
-        if CONF_ISSUE_TOKEN in user_input:
-            issue_token = user_input[CONF_ISSUE_TOKEN]
-        if CONF_COOKIES in user_input:
-            cookies = user_input[CONF_COOKIES]
-        if CONF_REFRESH_TOKEN in user_input:
-            refresh_token = user_input[CONF_REFRESH_TOKEN]
+        issue_token = user_input.get(CONF_ISSUE_TOKEN)
+        cookies = user_input.get(CONF_COOKIES)
+        refresh_token = user_input.get(CONF_REFRESH_TOKEN)
 
         if issue_token and cookies:
             auth = await client.get_access_token_from_cookies(issue_token, cookies)
         elif refresh_token:
             auth = await client.get_access_token_from_refresh_token(refresh_token)
-        else:
-            raise BadCredentialsException("No authentication data provided.")
 
         nest = await client.authenticate(auth.access_token)
         data = await client.get_first_data(nest.access_token, nest.userid)
 
-        if not hasattr(data, "updated_buckets"):
-            raise UnexpectedNestResponse("Nest response did not include buckets.")
+        if client.refreshed_cookies:
+            cookies = client.refreshed_cookies
 
         email = ""
-        has_supported_device = False
         for bucket in data.updated_buckets:
             key = bucket.object_key
             if key.startswith("user."):
-                email = bucket.value.get("email", "")
-            if bucket.type in (BucketType.TOPAZ, BucketType.KRYPTONITE):
-                has_supported_device = True
-
-        if not has_supported_device:
-            raise NoNestProtectDevicesFound(
-                "Authentication succeeded but no Nest Protect devices were found."
-            )
+                email = bucket.value["email"]
 
         # Set unique id to user_id (object.key: user.xxxx)
         await self.async_set_unique_id(nest.user)
 
-        return {
-            "email": email,
-            "token_payload": {
-                CONF_ACCESS_TOKEN: auth.access_token,
-                CONF_ACCESS_TOKEN_EXPIRES_AT: auth.expiry_date.isoformat(),
-            },
-        }
+        return [issue_token, cookies, email]
+
+    def _async_create_or_update_entry(
+        self, data: dict[str, Any], email: str
+    ) -> FlowResult:
+        """Create a new entry, or update the entry being reauthenticated/reconfigured."""
+        if self.source not in (SOURCE_REAUTH, SOURCE_RECONFIGURE):
+            self._abort_if_unique_id_configured()
+            return self.async_create_entry(title=f"Nest Protect ({email})", data=data)
+
+        entry = (
+            self._get_reauth_entry()
+            if self.source == SOURCE_REAUTH
+            else self._get_reconfigure_entry()
+        )
+
+        # Entries created before v0.4.0 are keyed by their refresh token instead
+        # of the Nest user ID, so the account can't be compared. Adopt the account
+        # that was just authenticated, unless another entry already owns it.
+        if not entry.unique_id or not entry.unique_id.startswith("user."):
+            if self.hass.config_entries.async_entry_for_domain_unique_id(
+                DOMAIN, self.unique_id
+            ):
+                return self.async_abort(reason="already_configured")
+            return self.async_update_reload_and_abort(
+                entry, unique_id=self.unique_id, data_updates=data
+            )
+
+        self._abort_if_unique_id_mismatch(reason="wrong_account")
+        return self.async_update_reload_and_abort(entry, data_updates=data)
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
-        """Handle the initial step."""
-        return await self.async_step_auth_bridge_start(user_input)
+        """Handle a flow initialized by the user."""
+        errors = {}
 
-    async def async_step_auth_bridge_start(
-        self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
-        """Start the auth bridge flow."""
-        if user_input is not None:
-            self._auth_bridge_mode = user_input.get(
-                CONF_AUTH_BRIDGE_MODE,
-                self._AUTH_BRIDGE_MODE_ADDON,
-            )
-            if self._auth_bridge_mode == self._AUTH_BRIDGE_MODE_STANDALONE:
-                return await self.async_step_auth_bridge_standalone()
-
-            self._auth_bridge_session = create_auth_bridge_session(self.hass)
-            return await self.async_step_auth_bridge_wait()
+        if user_input:
+            self._default_account_type = user_input[CONF_ACCOUNT_TYPE]
+            return await self.async_step_auth_method()
 
         return self.async_show_form(
-            step_id="auth_bridge_start",
+            step_id="user",
             data_schema=vol.Schema(
                 {
                     vol.Required(
-                        CONF_AUTH_BRIDGE_MODE,
-                        default=self._auth_bridge_mode,
-                    ): vol.In(self._AUTH_BRIDGE_MODE_LABELS),
-                }
-            ),
-            description_placeholders={
-                "session_id": "",
-            },
-        )
-
-    async def async_step_auth_bridge_standalone(
-        self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
-        """Ask for the standalone Auth Bridge base URL."""
-        errors: dict[str, str] = {}
-
-        if user_input is not None:
-            bridge_url = self._normalize_auth_bridge_base_url(
-                user_input[CONF_AUTH_BRIDGE_STANDALONE_URL]
-            )
-            if self._validate_auth_bridge_base_url(bridge_url):
-                self._auth_bridge_standalone_url = bridge_url
-                self._auth_bridge_session = create_auth_bridge_session(self.hass)
-                return await self.async_step_auth_bridge_wait()
-
-            errors[CONF_AUTH_BRIDGE_STANDALONE_URL] = "invalid_auth_bridge_url"
-
-        return self.async_show_form(
-            step_id="auth_bridge_standalone",
-            data_schema=vol.Schema(
-                {
-                    vol.Required(
-                        CONF_AUTH_BRIDGE_STANDALONE_URL,
-                        default=self._auth_bridge_standalone_url,
-                    ): str,
+                        CONF_ACCOUNT_TYPE, default=self._default_account_type
+                    ): vol.In(
+                        {key: env.name for key, env in NEST_ENVIRONMENTS.items()}
+                    ),
                 }
             ),
             errors=errors,
         )
 
-    async def async_step_auth_bridge_wait(
+    async def async_step_auth_method(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
-        """Wait for the auth bridge callback."""
-        cleanup_expired_auth_bridge_sessions(self.hass)
-        if self._auth_bridge_session and is_auth_bridge_session_expired(
-            self._auth_bridge_session
-        ):
-            self._auth_bridge_session = None
-
-        if not self._auth_bridge_session:
-            self._auth_bridge_session = create_auth_bridge_session(self.hass)
-
-        session = self._auth_bridge_session
-
-        if user_input is not None and user_input.get("fallback"):
-            return await self.async_step_wizard_login()
-
-        if session.result:
-            user_input = {
-                CONF_ISSUE_TOKEN: session.result.get(CONF_ISSUE_TOKEN, ""),
-                CONF_COOKIES: session.result.get(CONF_COOKIES, ""),
-            }
-            return await self.async_step_account_link(user_input)
-
-        launch_url = self._build_auth_bridge_launch_url(session)
-
-        return self.async_show_form(
-            step_id="auth_bridge_wait",
-            data_schema=vol.Schema({vol.Optional("fallback", default=False): bool}),
-            description_placeholders={
-                CONF_AUTH_BRIDGE_SESSION: session.session_id,
-                "auth_bridge_launch_url": launch_url,
-            },
-        )
-
-    async def async_step_wizard_login(
-        self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
-        """Handle wizard-assisted login with automated credential extraction."""
+        """Handle auth method selection."""
         if user_input:
-            errors = self._normalize_and_validate_credentials(user_input)
-            if errors:
-                return self.async_show_form(
-                    step_id="wizard_login",
-                    data_schema=vol.Schema(
-                        {
-                            vol.Required(CONF_WIZARD_OUTPUT, default=""): str,
-                            vol.Optional(CONF_ISSUE_TOKEN, default=""): str,
-                            vol.Optional(CONF_COOKIES, default=""): str,
-                        }
-                    ),
-                    errors=errors,
-                    description_placeholders={
-                        "nest_url": "https://home.nest.com",
-                    },
-                )
+            if user_input["method"] == "bridge":
+                return await self.async_step_auth_bridge()
+            if user_input["method"] == "extension":
+                return await self.async_step_extension()
+            return await self.async_step_account_link()
 
-            return await self.async_step_account_link(user_input)
-
-        # Show the wizard page with instructions and helper script
         return self.async_show_form(
-            step_id="wizard_login",
+            step_id="auth_method",
             data_schema=vol.Schema(
                 {
-                    vol.Required(CONF_WIZARD_OUTPUT, default=""): str,
-                    vol.Optional(CONF_ISSUE_TOKEN, default=""): str,
-                    vol.Optional(CONF_COOKIES, default=""): str,
+                    vol.Required("method", default="bridge"): SelectSelector(
+                        SelectSelectorConfig(
+                            options=["bridge", "extension", "manual"],
+                            translation_key="auth_method",
+                        )
+                    ),
                 }
             ),
-            description_placeholders={
-                "nest_url": "https://home.nest.com",
-            },
+            description_placeholders=DESCRIPTION_PLACEHOLDERS,
+        )
+
+    async def async_step_auth_bridge(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Choose the Auth Bridge installation type."""
+        if user_input is not None:
+            if user_input["mode"] == "standalone":
+                return await self.async_step_auth_bridge_standalone()
+            return self._start_auth_bridge(
+                "/hassio/ingress/nest_protect_auth_bridge/", addon=True
+            )
+
+        return self.async_show_form(
+            step_id="auth_bridge",
+            data_schema=vol.Schema(
+                {
+                    vol.Required("mode", default="standalone"): SelectSelector(
+                        SelectSelectorConfig(
+                            options=["standalone", "addon"],
+                            translation_key="auth_bridge_mode",
+                        )
+                    )
+                }
+            ),
+        )
+
+    async def async_step_auth_bridge_standalone(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Ask for the standalone bridge URL."""
+        errors = {}
+        if user_input is not None:
+            bridge_url = user_input["bridge_url"].strip().rstrip("/")
+            try:
+                parsed = urlsplit(bridge_url)
+                valid = (
+                    parsed.scheme in ("http", "https")
+                    and bool(parsed.hostname)
+                    and parsed.port != 0
+                    and parsed.username is None
+                    and not parsed.query
+                    and not parsed.fragment
+                )
+            except ValueError:
+                valid = False
+            if valid:
+                return self._start_auth_bridge(f"{bridge_url}/")
+            errors["bridge_url"] = "invalid_auth_bridge_url"
+
+        return self.async_show_form(
+            step_id="auth_bridge_standalone",
+            data_schema=vol.Schema({vol.Required("bridge_url"): str}),
+            errors=errors,
+        )
+
+    def _start_auth_bridge(self, url: str, *, addon: bool = False) -> FlowResult:
+        """Open the bridge with Home Assistant's native external step."""
+        register_auth_bridge_view(self.hass)
+        session = self._auth_bridge_session = create_auth_bridge_session(
+            self.hass, flow_id=self.flow_id
+        )
+        query = {"session_id": session.session_id, "secret": session.secret}
+        if addon:
+            query["callback_url"] = (
+                f"http://supervisor/core/api/nest_protect/auth_bridge/{session.session_id}"
+            )
+        return self.async_external_step(
+            step_id="auth_bridge_login", url=f"{url}?{urlencode(query)}"
+        )
+
+    async def async_step_auth_bridge_login(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Advance only after the bridge has successfully called back."""
+        session = self._auth_bridge_session
+        if session is not None and session.result is not None:
+            return self.async_external_step_done(next_step_id="auth_bridge_finish")
+        assert self.cur_step is not None  # noqa: S101
+        return self.cur_step
+
+    async def async_step_auth_bridge_finish(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Validate the returned credentials using the upstream account flow."""
+        session = self._auth_bridge_session
+        if session is not None and session.result is not None:
+            data = session.result
+            session.result = None
+            self._auth_bridge_session = None
+            get_auth_bridge_store(self.hass).pop(session.session_id, None)
+            result = await self.async_step_account_link(data.copy())
+            if result["type"] != FlowResultType.FORM:
+                return result
+            self._auth_bridge_error = result.get("errors", {}).get(
+                "base", "invalid_auth"
+            )
+
+        if user_input is not None:
+            return await self.async_step_auth_method()
+        return self.async_show_form(
+            step_id="auth_bridge_finish", errors={"base": self._auth_bridge_error}
+        )
+
+    async def async_step_extension(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Handle authentication via Chrome extension code."""
+        errors = {}
+
+        if user_input:
+            issue_token = ""
+            cookies = ""
+
+            try:
+                decoded = json.loads(
+                    base64.b64decode(user_input[CONF_AUTH_CODE]).decode()
+                )
+                issue_token = decoded["issue_token"]
+                cookies = decoded["cookies"]
+            except ValueError, KeyError, json.JSONDecodeError:
+                errors[CONF_AUTH_CODE] = "invalid_code"
+
+            if not errors and (
+                not self._validate_issue_token(issue_token)
+                or not self._validate_cookies(cookies)
+            ):
+                errors[CONF_AUTH_CODE] = "invalid_code"
+
+            if not errors:
+                validation_input = {
+                    CONF_ISSUE_TOKEN: issue_token,
+                    CONF_COOKIES: cookies,
+                    CONF_ACCOUNT_TYPE: self._default_account_type,
+                }
+                try:
+                    [issue_token, cookies, email] = await self.async_validate_input(
+                        validation_input
+                    )
+                except TimeoutError, ClientError, NestServiceException:
+                    errors["base"] = "cannot_connect"
+                except BadCredentialsException:
+                    errors["base"] = "invalid_auth"
+                except Exception as exception:  # pylint: disable=broad-except
+                    errors["base"] = "unknown"
+                    LOGGER.exception(exception)
+
+            if not errors:
+                data = {
+                    CONF_ISSUE_TOKEN: issue_token,
+                    CONF_COOKIES: cookies,
+                    CONF_ACCOUNT_TYPE: self._default_account_type,
+                }
+                return self._async_create_or_update_entry(data, email)
+
+        return self.async_show_form(
+            step_id="extension",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_AUTH_CODE): str,
+                }
+            ),
+            description_placeholders=DESCRIPTION_PLACEHOLDERS,
+            errors=errors,
         )
 
     async def async_step_account_link(
@@ -498,63 +380,46 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         if user_input:
             user_input[CONF_ACCOUNT_TYPE] = self._default_account_type
-            errors = self._normalize_and_validate_credentials(user_input)
+            issue_token = user_input.get(CONF_ISSUE_TOKEN, "").strip()
+            cookies = self._normalize_cookies(user_input.get(CONF_COOKIES, ""))
+            # Store stripped values back so downstream validation and API calls
+            # use the normalized credentials
+            user_input[CONF_ISSUE_TOKEN] = issue_token
+            user_input[CONF_COOKIES] = cookies
+
+            # Validate input format before making API calls
+            if not self._validate_issue_token(issue_token):
+                errors[CONF_ISSUE_TOKEN] = "invalid_issue_token"
+            elif not self._validate_cookies(cookies):
+                errors[CONF_COOKIES] = "invalid_cookies"
 
             if not errors:
                 try:
-                    validation = await self.async_validate_input(user_input)
-                    email = validation["email"]
-                    token_payload = validation["token_payload"]
-                except TimeoutError:
-                    errors["base"] = "network_timeout"
-                except ClientError:
+                    [issue_token, cookies, email] = await self.async_validate_input(
+                        user_input
+                    )
+                    user_input[CONF_ISSUE_TOKEN] = issue_token
+                    user_input[CONF_COOKIES] = cookies
+                except TimeoutError, ClientError, NestServiceException:
                     errors["base"] = "cannot_connect"
                 except BadCredentialsException:
-                    errors["base"] = "authentication_rejected"
-                except NoNestProtectDevicesFound:
-                    errors["base"] = "no_devices_found"
-                except UnexpectedNestResponse:
-                    errors["base"] = "unexpected_response"
+                    errors["base"] = "invalid_auth"
                 except Exception as exception:  # pylint: disable=broad-except
                     errors["base"] = "unknown"
                     LOGGER.exception(exception)
 
             if not errors:
-                if self._config_entry:
-                    # Update existing entry during reauth
-                    self.hass.config_entries.async_update_entry(
-                        self._config_entry,
-                        data={
-                            **self._config_entry.data,
-                            **user_input,
-                            **token_payload,
-                        },
-                    )
-
-                    self.hass.async_create_task(
-                        self.hass.config_entries.async_reload(
-                            self._config_entry.entry_id
-                        )
-                    )
-
-                    return self.async_abort(reason="reauth_successful")
-
-                self._abort_if_unique_id_configured()
-
-                entry_data = {**user_input, **token_payload}
-                return self.async_create_entry(
-                    title=f"Nest Protect ({email})", data=entry_data
-                )
+                return self._async_create_or_update_entry(user_input, email)
 
         return self.async_show_form(
-            step_id="wizard_login",
+            step_id="account_link",
             data_schema=vol.Schema(
                 {
-                    vol.Required(CONF_WIZARD_OUTPUT, default=""): str,
-                    vol.Optional(CONF_ISSUE_TOKEN, default=""): str,
-                    vol.Optional(CONF_COOKIES, default=""): str,
+                    vol.Required(CONF_ISSUE_TOKEN): str,
+                    vol.Required(CONF_COOKIES): str,
                 }
             ),
+            description_placeholders=DESCRIPTION_PLACEHOLDERS,
             errors=errors,
             last_step=True,
         )
@@ -563,13 +428,16 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         """Handle reauth."""
-        self._config_entry = cast(
-            ConfigEntry,
-            self.hass.config_entries.async_get_entry(self.context["entry_id"]),
-        )
+        self._default_account_type = self._get_reauth_entry().data[CONF_ACCOUNT_TYPE]
 
-        self._default_account_type = self._config_entry.data.get(
-            CONF_ACCOUNT_TYPE, Environment.PRODUCTION
-        )
+        return await self.async_step_auth_method()
 
-        return await self.async_step_auth_bridge_start(user_input)
+    async def async_step_reconfigure(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Handle updating the credentials of an existing entry."""
+        self._default_account_type = self._get_reconfigure_entry().data[
+            CONF_ACCOUNT_TYPE
+        ]
+
+        return await self.async_step_auth_method()

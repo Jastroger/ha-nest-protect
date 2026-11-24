@@ -1,69 +1,104 @@
 {
   "config": {
+    "abort": {
+      "already_configured": "Le compte est déjà configuré",
+      "wrong_account": "The credentials belong to a different Nest account than the one configured. Sign in with the original account, or add the other account as a new entry."
+    },
+    "error": {
+      "cannot_connect": "Échec de connexion",
+      "invalid_auth": "Authentification invalide",
+      "unknown": "Erreur inattendue",
+      "invalid_issue_token": "Invalid issue token URL. Must start with {accounts_url} and contain the issueToken action.",
+      "invalid_cookies": "Invalid cookies format. Ensure you copied the complete cookie header from the oauth2/iframe request.",
+      "invalid_code": "Invalid authentication code. Make sure you copied the complete code from the extension.",
+      "invalid_auth_bridge_url": "Saisissez une adresse http:// ou https:// valide, sans identifiants, paramètres ni fragment."
+    },
     "step": {
-      "auth_bridge_start": {
-        "title": "Set up Nest Protect",
-        "description": "Nest Protect is not available through Google's official SDM API. This setup uses an Auth Bridge so you can sign in normally without browser developer tools.\n\nHome Assistant OS/Supervised: choose the Auth Bridge Add-on / App.\n\nHome Assistant Container/Core: choose the standalone Docker Auth Bridge.",
+      "user": {
         "data": {
-          "auth_bridge_mode": "Auth Bridge mode"
+          "account_type": "Type de compte"
+        },
+        "description": "Select your Account Type. Most users will need to select Google Account. Field Test is only available for selected testers in the Google Field Test program."
+      },
+      "auth_method": {
+        "title": "Connecter votre compte Nest",
+        "description": "Sur un téléphone, choisissez le pont d’authentification. Sur un ordinateur, l’extension de navigateur est aussi disponible.",
+        "data": {
+          "method": "Méthode de connexion"
+        }
+      },
+      "extension": {
+        "title": "Connect with Chrome Extension",
+        "description": "1. [Download the Nest Auth Helper extension]({extension_download_url})\n2. Unzip and load it in Chrome (chrome://extensions → Developer Mode → Load Unpacked)\n3. Sign in to [home.nest.com]({nest_url})\n4. Click the extension icon → click **Extract Credentials**\n5. Copy the code and paste it below\n\n⚠️ Do not share this code — it contains your session credentials.",
+        "data": {
+          "auth_code": "Authentication Code"
+        },
+        "data_description": {
+          "auth_code": "The code displayed by the Nest Auth Helper extension"
+        }
+      },
+      "account_link": {
+        "title": "Connect Your Nest Account (Manual)",
+        "description": "Follow these steps to get your credentials:\n\n1. Open a **regular** Chrome/Edge browser window (not Incognito — third-party cookies must be enabled)\n2. Open **Developer Tools** (F12) → **Network** tab → Check **Preserve Log**\n3. In the filter box, type `issueToken`\n4. Go to [home.nest.com]({nest_url}) and sign in with Google\n5. Click the `iframerpc` request and copy the full **Request URL**\n6. In the filter box, type `oauth2/iframe`, click the last request, and copy the entire **Cookie** header value\n\n⚠️ Do not log out of home.nest.com after copying credentials.",
+        "data": {
+          "issue_token": "Issue Token URL",
+          "cookies": "Cookies"
+        },
+        "data_description": {
+          "issue_token": "Full URL starting with {issue_token_prefix}...",
+          "cookies": "Complete cookie string from the oauth2/iframe request headers"
+        }
+      },
+      "auth_bridge": {
+        "title": "Choisir le pont d’authentification",
+        "description": "Choisissez Docker autonome pour Home Assistant dans Docker, ou Module complémentaire pour le pont installé dans Home Assistant OS.",
+        "data": {
+          "mode": "Type de pont"
         }
       },
       "auth_bridge_standalone": {
-        "title": "Standalone Docker Auth Bridge",
-        "description": "Enter the base URL of the standalone Auth Bridge you started with Docker, for example `http://192.168.178.104:8099`.\n\nHome Assistant will generate the launch link with the one-time session data. Do not open the bridge manually without the launch link from Home Assistant.",
+        "title": "Saisir l’adresse du pont",
+        "description": "Saisissez une adresse accessible depuis cet appareil avec http:// ou https:// et le port du pont.",
         "data": {
-          "auth_bridge_standalone_url": "Auth Bridge URL"
-        }
-      },
-      "auth_bridge_wait": {
-        "title": "Waiting for Nest Protect sign-in",
-        "description": "The Auth Bridge is ready. Click the launch link below to start the login session:\\n\\n[{auth_bridge_launch_url}]({auth_bridge_launch_url})\\n\\nHA OS/Supervised: this opens the Auth Bridge add-on/app through Home Assistant Ingress.\\n\\nContainer/Core: this opens your standalone Docker Auth Bridge with the one-time session data.\\n\\nIf this page does not auto-refresh after login, click Submit.\\n\\n**Troubleshooting/developer only:** Ingress URL handling can vary; if needed, open the bridge UI manually and reuse the launch URL query string. Enable the manual fallback option below only for troubleshooting.",
-        "data": {
-          "fallback": "Use manual fallback"
-        }
-      },
-      "wizard_login": {
-        "title": "Configurer Nest Protect",
-        "description": "Nest Protect is not exposed through the official Google Nest SDM API, even when your alarms appear in the Google Home app. This integration therefore uses the Nest web authentication flow.\n\nPaste an authentication helper output block into the first field. The helper must capture the real issueToken request URL and Cookie request header locally; Home Assistant itself cannot read Google request headers from your browser.\n\nThe separate Issue Token URL and Cookie header fields are for legacy or emergency fallback use only.",
-        "data": {
-          "wizard_output": "Wizard output block",
-          "issue_token": "Issue Token URL",
-          "cookies": "Cookie header"
+          "bridge_url": "Adresse du pont"
         },
         "data_description": {
-          "wizard_output": "Paste the complete block printed by a Nest Protect authentication helper.",
-          "issue_token": "Fallback only: full URL beginning with https://accounts.google.com/o/oauth2/iframerpc.",
-          "cookies": "Fallback only: full Cookie request header captured by the wizard or manual troubleshooting."
+          "bridge_url": "Exemple : http://192.168.178.27:8099"
         }
+      },
+      "auth_bridge_login": {
+        "title": "Se connecter à Nest",
+        "description": "Ouvrez le pont, sélectionnez Start Login et connectez-vous avec le compte Google de vos détecteurs Nest Protect. Revenez ensuite ici."
+      },
+      "auth_bridge_finish": {
+        "title": "Impossible de connecter le compte Nest",
+        "description": "Sélectionnez Continuer pour choisir à nouveau une méthode de connexion."
       }
-    },
-    "error": {
-      "cannot_connect": "Connection failed",
-      "network_timeout": "The Google/Nest request timed out. Try again after checking your network connection.",
-      "authentication_rejected": "Google/Nest rejected these credentials. Run the wizard again and do not log out of home.nest.com afterward.",
-      "missing_issue_token": "Issue Token URL is required.",
-      "invalid_issue_token": "Invalid Issue Token URL. Paste the full issueToken request URL, including all query parameters.",
-      "invalid_auth_bridge_url": "Enter an absolute Auth Bridge URL starting with http:// or https://.",
-      "missing_cookie_header": "Cookie header is required.",
-      "incomplete_cookie_header": "Cookie header looks incomplete. Copy the full Cookie header from the oauth2/iframe Network request.",
-      "no_devices_found": "Authentication succeeded, but no Nest Protect devices were found on this account.",
-      "unexpected_response": "Nest returned an unexpected response. Try again or open an issue with redacted diagnostics.",
-      "unknown": "Unexpected error"
-    },
-    "abort": {
-      "already_configured": "Account is already configured",
-      "reauth_successful": "Re-authentication successful"
     }
   },
   "entity": {
     "select": {
       "night_light_brightness": {
-        "name": "Night Light Brightness",
         "state": {
-          "low": "Low",
-          "medium": "Medium",
-          "high": "High"
+          "low": "Bas",
+          "medium": "Moyen",
+          "high": "Haut"
         }
+      }
+    }
+  },
+  "selector": {
+    "auth_method": {
+      "options": {
+        "bridge": "Pont d’authentification (téléphone ou ordinateur)",
+        "extension": "Extension de navigateur (ordinateur)",
+        "manual": "Saisir les identifiants manuellement"
+      }
+    },
+    "auth_bridge_mode": {
+      "options": {
+        "standalone": "Docker autonome",
+        "addon": "Module complémentaire Home Assistant"
       }
     }
   }

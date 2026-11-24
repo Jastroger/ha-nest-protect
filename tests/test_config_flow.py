@@ -1,292 +1,622 @@
-"""Tests for the Nest Protect config flow helpers."""
+"""Tests for the Nest Protect config flow."""
 
-import datetime
-from types import SimpleNamespace
-from urllib.parse import parse_qs, urlsplit
+import base64
+import json
+from unittest.mock import AsyncMock, MagicMock, patch
 
-from custom_components.nest_protect.auth_bridge import AuthBridgeSession
-from custom_components.nest_protect.config_flow import ConfigFlow
-from custom_components.nest_protect.const import (
-    CONF_AUTH_BRIDGE_STANDALONE_URL,
-    CONF_COOKIES,
-    CONF_ISSUE_TOKEN,
-    CONF_WIZARD_OUTPUT,
+import pytest
+from homeassistant.core import HomeAssistant
+from homeassistant.data_entry_flow import FlowResultType
+from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+from custom_components.nest_protect.const import DOMAIN
+from custom_components.nest_protect.pynest.exceptions import (
+    BadCredentialsException,
+    BadGatewayException,
+    NestServiceException,
 )
 
 
-VALID_ISSUE_TOKEN = (
-    "https://accounts.google.com/o/oauth2/iframerpc?"
-    "action=issueToken&response_type=token"
-)
-VALID_COOKIES = (
-    "SID=example-session; HSID=example-hsid; SSID=example-ssid; "
-    "APISID=example-apisid; SAPISID=example-sapisid; "
-    "ACCOUNT_CHOOSER=example; NID=example; 1P_JAR=example; "
-    "CONSENT=YES+example"
-)
+async def test_step_user_leads_to_auth_method(hass: HomeAssistant) -> None:
+    """Test that selecting account type leads to auth_method step."""
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": "user"}
+    )
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "user"
+
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        user_input={"account_type": "production"},
+    )
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "auth_method"
 
 
-def test_normalize_issue_token_strips_whitespace():
-    """Test issue token normalization."""
-    assert ConfigFlow._normalize_issue_token(f" \n{VALID_ISSUE_TOKEN}\n ") == (
-        VALID_ISSUE_TOKEN
+async def test_auth_method_extension_leads_to_extension_step(
+    hass: HomeAssistant,
+) -> None:
+    """Test selecting extension method leads to extension step."""
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": "user"}
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        user_input={"account_type": "production"},
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        user_input={"method": "extension"},
+    )
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "extension"
+
+
+async def test_auth_method_manual_leads_to_account_link(
+    hass: HomeAssistant,
+) -> None:
+    """Test selecting manual method leads to account_link step."""
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": "user"}
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        user_input={"account_type": "production"},
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        user_input={"method": "manual"},
+    )
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "account_link"
+
+
+async def test_account_link_stores_refreshed_cookies(
+    hass: HomeAssistant,
+) -> None:
+    """Test manual auth stores cookies refreshed during validation."""
+    issue_token = "https://accounts.google.com/o/oauth2/iframerpc?action=issueToken&response_type=token%20id_token&login_hint=hint123&client_id=733249279899-44tchle2kaa9afr5v9ov7jbuojfr9lrq.apps.googleusercontent.com&origin=https%3A%2F%2Fhome.nest.com&scope=openid+profile+email+https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fnest-account&ss_domain=https%3A%2F%2Fhome.nest.com"
+    cookies = "SID=abc123456789012345678901234567890; HSID=def1234567890; SSID=ghi1234567890; APISID=jkl1234567890; SAPISID=mno1234567890"
+    refreshed_cookies = f"{cookies}; __Secure-1PSIDTS=fresh"
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": "user"}
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        user_input={"account_type": "production"},
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        user_input={"method": "manual"},
     )
 
-
-def test_normalize_cookies_compacts_multiline_header():
-    """Test cookie normalization."""
-    cookies = "SID=example;\n  HSID=example;   SSID=example"
-    assert ConfigFlow._normalize_cookies(cookies) == (
-        "SID=example; HSID=example; SSID=example"
+    client = MagicMock()
+    client.refreshed_cookies = refreshed_cookies
+    client.get_access_token_from_cookies = AsyncMock(
+        return_value=MagicMock(access_token="google-token")
     )
-
-
-def test_split_issue_token_and_cookies_from_combined_paste():
-    """Test combined paste support."""
-    issue_token, cookies = ConfigFlow._split_issue_token_and_cookies(
-        f"{VALID_ISSUE_TOKEN}\n{VALID_COOKIES}",
-        "",
+    client.authenticate = AsyncMock(
+        return_value=MagicMock(access_token="nest-token", userid="user1", user="user.1")
     )
-
-    assert issue_token == VALID_ISSUE_TOKEN
-    assert cookies == VALID_COOKIES
-
-
-def test_parse_wizard_output_block():
-    """Test parsing the auth wizard's copy-paste block."""
-    issue_token, cookies = ConfigFlow._parse_wizard_output(
-        "\n".join(
-            [
-                "NEST_PROTECT_AUTH_WIZARD_OUTPUT_V1",
-                f"issue_token={VALID_ISSUE_TOKEN}",
-                f"cookies={VALID_COOKIES}",
-                "END_NEST_PROTECT_AUTH_WIZARD_OUTPUT",
+    client.get_first_data = AsyncMock(
+        return_value=MagicMock(
+            updated_buckets=[
+                MagicMock(object_key="user.1", value={"email": "user@example.com"})
             ]
         )
     )
 
-    assert issue_token == VALID_ISSUE_TOKEN
-    assert cookies == VALID_COOKIES
+    with patch(
+        "custom_components.nest_protect.config_flow.NestClient",
+        return_value=client,
+    ):
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            user_input={"issue_token": issue_token, "cookies": cookies},
+        )
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["data"]["cookies"] == refreshed_cookies
 
 
-def test_parse_wizard_output_legacy_label_block():
-    """Test parsing older label-style wizard output."""
-    issue_token, cookies = ConfigFlow._parse_wizard_output(
-        f"Issue Token URL:\n{VALID_ISSUE_TOKEN}\nCookie header:\n{VALID_COOKIES}"
+async def test_extension_step_creates_entry(hass: HomeAssistant) -> None:
+    """Test extension step decodes code and creates entry on success."""
+    issue_token = "https://accounts.google.com/o/oauth2/iframerpc?action=issueToken&response_type=token%20id_token&login_hint=hint123&client_id=733249279899-44tchle2kaa9afr5v9ov7jbuojfr9lrq.apps.googleusercontent.com&origin=https%3A%2F%2Fhome.nest.com&scope=openid+profile+email+https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fnest-account&ss_domain=https%3A%2F%2Fhome.nest.com"
+    cookies = "SID=abc123456789012345678901234567890; HSID=def1234567890; SSID=ghi1234567890; APISID=jkl1234567890; SAPISID=mno1234567890"
+    code = base64.b64encode(
+        json.dumps({"issue_token": issue_token, "cookies": cookies}).encode()
+    ).decode()
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": "user"}
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        user_input={"account_type": "production"},
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        user_input={"method": "extension"},
+    )
+    assert result["step_id"] == "extension"
+
+    with patch(
+        "custom_components.nest_protect.config_flow.ConfigFlow.async_validate_input",
+        new_callable=AsyncMock,
+        return_value=[issue_token, cookies, "user@example.com"],
+    ):
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            user_input={"auth_code": code},
+        )
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["title"] == "Nest Protect (user@example.com)"
+    assert result["data"]["issue_token"] == issue_token
+    assert result["data"]["cookies"] == cookies
+    assert result["data"]["account_type"] == "production"
+
+
+async def test_extension_step_stores_refreshed_cookies(
+    hass: HomeAssistant,
+) -> None:
+    """Test extension step stores cookies refreshed during validation."""
+    issue_token = "https://accounts.google.com/o/oauth2/iframerpc?action=issueToken&response_type=token%20id_token&login_hint=hint123&client_id=733249279899-44tchle2kaa9afr5v9ov7jbuojfr9lrq.apps.googleusercontent.com&origin=https%3A%2F%2Fhome.nest.com&scope=openid+profile+email+https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fnest-account&ss_domain=https%3A%2F%2Fhome.nest.com"
+    cookies = "SID=abc123456789012345678901234567890; HSID=def1234567890; SSID=ghi1234567890; APISID=jkl1234567890; SAPISID=mno1234567890"
+    refreshed_cookies = f"{cookies}; __Secure-1PSIDTS=fresh"
+    code = base64.b64encode(
+        json.dumps({"issue_token": issue_token, "cookies": cookies}).encode()
+    ).decode()
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": "user"}
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        user_input={"account_type": "production"},
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        user_input={"method": "extension"},
     )
 
-    assert issue_token == VALID_ISSUE_TOKEN
-    assert cookies == VALID_COOKIES
-
-
-def test_validate_credentials_accepts_full_wizard_block():
-    """Test config flow helper accepts a full wizard block."""
-    flow = ConfigFlow()
-    user_input = {
-        CONF_WIZARD_OUTPUT: "\n".join(
-            [
-                "NEST_PROTECT_AUTH_WIZARD_OUTPUT_V1",
-                f"issue_token={VALID_ISSUE_TOKEN}",
-                f"cookies={VALID_COOKIES}",
-                "END_NEST_PROTECT_AUTH_WIZARD_OUTPUT",
+    client = MagicMock()
+    client.refreshed_cookies = refreshed_cookies
+    client.get_access_token_from_cookies = AsyncMock(
+        return_value=MagicMock(access_token="google-token")
+    )
+    client.authenticate = AsyncMock(
+        return_value=MagicMock(access_token="nest-token", userid="user1", user="user.1")
+    )
+    client.get_first_data = AsyncMock(
+        return_value=MagicMock(
+            updated_buckets=[
+                MagicMock(object_key="user.1", value={"email": "user@example.com"})
             ]
-        ),
-        CONF_ISSUE_TOKEN: "",
-        CONF_COOKIES: "",
-    }
+        )
+    )
 
-    assert flow._normalize_and_validate_credentials(user_input) == {}
-    assert user_input[CONF_ISSUE_TOKEN] == VALID_ISSUE_TOKEN
-    assert user_input[CONF_COOKIES] == VALID_COOKIES
-    assert CONF_WIZARD_OUTPUT not in user_input
+    with patch(
+        "custom_components.nest_protect.config_flow.NestClient",
+        return_value=client,
+    ):
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            user_input={"auth_code": code},
+        )
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["data"]["cookies"] == refreshed_cookies
 
 
-def test_validate_credentials_reports_incomplete_wizard_block():
-    """Test incomplete wizard block reports an actionable field error."""
-    flow = ConfigFlow()
-    errors = flow._normalize_and_validate_credentials(
-        {
-            CONF_WIZARD_OUTPUT: (
-                "NEST_PROTECT_AUTH_WIZARD_OUTPUT_V1\n"
-                f"cookies={VALID_COOKIES}\n"
-                "END_NEST_PROTECT_AUTH_WIZARD_OUTPUT"
-            ),
-            CONF_ISSUE_TOKEN: "",
-            CONF_COOKIES: "",
+async def test_extension_step_invalid_code(hass: HomeAssistant) -> None:
+    """Test extension step shows error for invalid base64."""
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": "user"}
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        user_input={"account_type": "production"},
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        user_input={"method": "extension"},
+    )
+
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        user_input={"auth_code": "not-valid-base64!!!"},
+    )
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "extension"
+    assert result["errors"]["auth_code"] == "invalid_code"
+
+
+async def test_extension_step_auth_failure(hass: HomeAssistant) -> None:
+    """Test extension step shows error when auth chain fails."""
+    issue_token = "https://accounts.google.com/o/oauth2/iframerpc?action=issueToken&response_type=token%20id_token&login_hint=hint123&client_id=733249279899-44tchle2kaa9afr5v9ov7jbuojfr9lrq.apps.googleusercontent.com&origin=https%3A%2F%2Fhome.nest.com&scope=openid+profile+email+https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fnest-account&ss_domain=https%3A%2F%2Fhome.nest.com"
+    cookies = "SID=abc123456789012345678901234567890; HSID=def1234567890; SSID=ghi1234567890; APISID=jkl1234567890; SAPISID=mno1234567890"
+    code = base64.b64encode(
+        json.dumps({"issue_token": issue_token, "cookies": cookies}).encode()
+    ).decode()
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": "user"}
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        user_input={"account_type": "production"},
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        user_input={"method": "extension"},
+    )
+
+    with patch(
+        "custom_components.nest_protect.config_flow.ConfigFlow.async_validate_input",
+        new_callable=AsyncMock,
+        side_effect=BadCredentialsException("expired"),
+    ):
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            user_input={"auth_code": code},
+        )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "extension"
+    assert result["errors"]["base"] == "invalid_auth"
+
+
+async def test_reauth_shows_auth_method(hass: HomeAssistant) -> None:
+    """Test reauth flow shows auth method selection."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            "issue_token": "https://accounts.google.com/o/oauth2/iframerpc?action=issueToken&fake=true",
+            "cookies": "SID=old; HSID=old; SSID=old; APISID=old; SAPISID=old",
+            "account_type": "production",
+        },
+    )
+    entry.add_to_hass(hass)
+
+    result = await entry.start_reauth_flow(hass)
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "auth_method"
+
+
+@pytest.mark.parametrize(
+    "error",
+    [NestServiceException("503 error"), BadGatewayException("502 error")],
+)
+@pytest.mark.parametrize("source", ["user", "reauth"])
+@pytest.mark.parametrize("method", ["extension", "manual"])
+async def test_transient_service_error_shows_cannot_connect(
+    hass: HomeAssistant, error: Exception, source: str, method: str
+) -> None:
+    """Test a temporary Nest outage is reported as cannot_connect."""
+    issue_token = "https://accounts.google.com/o/oauth2/iframerpc?action=issueToken&response_type=token%20id_token&login_hint=hint123&client_id=733249279899-44tchle2kaa9afr5v9ov7jbuojfr9lrq.apps.googleusercontent.com&origin=https%3A%2F%2Fhome.nest.com&scope=openid+profile+email+https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fnest-account&ss_domain=https%3A%2F%2Fhome.nest.com"
+    cookies = "SID=abc123456789012345678901234567890; HSID=def1234567890; SSID=ghi1234567890; APISID=jkl1234567890; SAPISID=mno1234567890"
+
+    if source == "reauth":
+        entry = MockConfigEntry(
+            domain=DOMAIN,
+            data={
+                "issue_token": issue_token,
+                "cookies": cookies,
+                "account_type": "production",
+            },
+        )
+        entry.add_to_hass(hass)
+        result = await entry.start_reauth_flow(hass)
+    else:
+        result = await hass.config_entries.flow.async_init(
+            DOMAIN, context={"source": "user"}
+        )
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            user_input={"account_type": "production"},
+        )
+
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        user_input={"method": method},
+    )
+
+    if method == "extension":
+        user_input = {
+            "auth_code": base64.b64encode(
+                json.dumps({"issue_token": issue_token, "cookies": cookies}).encode()
+            ).decode()
         }
+    else:
+        user_input = {"issue_token": issue_token, "cookies": cookies}
+
+    with patch(
+        "custom_components.nest_protect.config_flow.ConfigFlow.async_validate_input",
+        new_callable=AsyncMock,
+        side_effect=error,
+    ):
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            user_input=user_input,
+        )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"]["base"] == "cannot_connect"
+
+
+VALID_ISSUE_TOKEN = "https://accounts.google.com/o/oauth2/iframerpc?action=issueToken&response_type=token%20id_token&login_hint=hint123&client_id=733249279899-44tchle2kaa9afr5v9ov7jbuojfr9lrq.apps.googleusercontent.com&origin=https%3A%2F%2Fhome.nest.com&scope=openid+profile+email+https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fnest-account&ss_domain=https%3A%2F%2Fhome.nest.com"
+VALID_COOKIES = "SID=abc123456789012345678901234567890; HSID=def1234567890; SSID=ghi1234567890; APISID=jkl1234567890; SAPISID=mno1234567890"
+
+
+def _mock_client(user: str = "user.1", email: str = "user@example.com") -> MagicMock:
+    """Return a NestClient mock that authenticates as the given account."""
+    client = MagicMock()
+    client.refreshed_cookies = None
+    client.get_access_token_from_cookies = AsyncMock(
+        return_value=MagicMock(access_token="google-token")
     )
-
-    assert errors == {CONF_WIZARD_OUTPUT: "missing_issue_token"}
-
-
-def test_reauth_accepts_wizard_block_shape():
-    """Test reauth can reuse the same wizard block normalization path."""
-    flow = ConfigFlow()
-    user_input = {
-        CONF_WIZARD_OUTPUT: f"{VALID_ISSUE_TOKEN}\n{VALID_COOKIES}",
-        CONF_ISSUE_TOKEN: "",
-        CONF_COOKIES: "",
-    }
-
-    assert flow._normalize_and_validate_credentials(user_input) == {}
-    assert user_input[CONF_ISSUE_TOKEN] == VALID_ISSUE_TOKEN
-    assert user_input[CONF_COOKIES] == VALID_COOKIES
-
-
-def test_validate_credentials_requires_issue_token():
-    """Test missing issue token validation."""
-    flow = ConfigFlow()
-    errors = flow._normalize_and_validate_credentials(
-        {CONF_ISSUE_TOKEN: "", CONF_COOKIES: VALID_COOKIES}
-    )
-
-    assert errors == {CONF_ISSUE_TOKEN: "missing_issue_token"}
-
-
-def test_validate_credentials_rejects_invalid_issue_token():
-    """Test invalid issue token validation."""
-    flow = ConfigFlow()
-    errors = flow._normalize_and_validate_credentials(
-        {CONF_ISSUE_TOKEN: "https://example.com", CONF_COOKIES: VALID_COOKIES}
-    )
-
-    assert errors == {CONF_ISSUE_TOKEN: "invalid_issue_token"}
-
-
-def test_validate_credentials_requires_cookie_header():
-    """Test missing cookie header validation."""
-    flow = ConfigFlow()
-    errors = flow._normalize_and_validate_credentials(
-        {CONF_ISSUE_TOKEN: VALID_ISSUE_TOKEN, CONF_COOKIES: ""}
-    )
-
-    assert errors == {CONF_COOKIES: "missing_cookie_header"}
-
-
-def test_validate_credentials_rejects_incomplete_cookie_header():
-    """Test incomplete cookie header validation."""
-    flow = ConfigFlow()
-    errors = flow._normalize_and_validate_credentials(
-        {CONF_ISSUE_TOKEN: VALID_ISSUE_TOKEN, CONF_COOKIES: "SID=short"}
-    )
-
-    assert errors == {CONF_COOKIES: "incomplete_cookie_header"}
-
-
-def test_validate_credentials_normalizes_user_input():
-    """Test that valid credentials are normalized in place."""
-    flow = ConfigFlow()
-    user_input = {
-        CONF_ISSUE_TOKEN: f"\n{VALID_ISSUE_TOKEN}\n",
-        CONF_COOKIES: "SID=example;\n HSID=example; SSID=example; "
-        "APISID=example; SAPISID=example; ACCOUNT_CHOOSER=example; "
-        "NID=example; CONSENT=YES+example",
-    }
-
-    assert flow._normalize_and_validate_credentials(user_input) == {}
-    assert user_input[CONF_ISSUE_TOKEN] == VALID_ISSUE_TOKEN
-    assert "\n" not in user_input[CONF_COOKIES]
-
-
-def test_build_auth_bridge_callback_url_uses_supervisor_api():
-    """Test callback URL points to Supervisor/Core API."""
-    flow = ConfigFlow()
-
-    assert flow._build_auth_bridge_callback_url("abc123") == (
-        "http://supervisor/core/api/nest_protect/auth_bridge/abc123"
-    )
-
-
-def test_build_auth_bridge_launch_url_addon_uses_ingress_and_supervisor_callback():
-    """Test add-on launch URL contains session, secret and Supervisor callback."""
-    flow = ConfigFlow()
-    flow._auth_bridge_mode = flow._AUTH_BRIDGE_MODE_ADDON
-    flow.hass = SimpleNamespace(
-        config=SimpleNamespace(
-            internal_url="http://homeassistant.local:8123",
-            external_url="",
+    client.authenticate = AsyncMock(
+        return_value=MagicMock(
+            access_token="nest-token", userid=user.removeprefix("user."), user=user
         )
     )
-    session = AuthBridgeSession(
-        session_id="session-1",
-        secret="secret-1",
-        expires_at=datetime.datetime.now(datetime.UTC),
+    client.get_first_data = AsyncMock(
+        return_value=MagicMock(
+            updated_buckets=[MagicMock(object_key=user, value={"email": email})]
+        )
+    )
+    return client
+
+
+def _existing_entry(hass: HomeAssistant, unique_id: str | None) -> MockConfigEntry:
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        version=3,
+        unique_id=unique_id,
+        title="Nest Protect (user@example.com)",
+        data={
+            "issue_token": "https://accounts.google.com/o/oauth2/iframerpc?action=issueToken&fake=true",
+            "cookies": "SID=old; HSID=old; SSID=old; APISID=old; SAPISID=old",
+            "account_type": "production",
+        },
+    )
+    entry.add_to_hass(hass)
+    return entry
+
+
+async def _submit_manual_credentials(
+    hass: HomeAssistant,
+    result: dict,
+    client: MagicMock,
+    cookies: str = VALID_COOKIES,
+) -> dict:
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], user_input={"method": "manual"}
+    )
+    assert result["step_id"] == "account_link"
+
+    with (
+        patch(
+            "custom_components.nest_protect.config_flow.NestClient",
+            return_value=client,
+        ),
+        patch(
+            "custom_components.nest_protect.async_setup_entry", return_value=True
+        ) as mock_setup_entry,
+    ):
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            user_input={"issue_token": VALID_ISSUE_TOKEN, "cookies": cookies},
+        )
+        await hass.async_block_till_done()
+
+    result["setup_entry_calls"] = len(mock_setup_entry.mock_calls)
+    return result
+
+
+async def test_reauth_same_account_updates_and_reloads(hass: HomeAssistant) -> None:
+    """Test reauth with the same account updates the entry and reloads it."""
+    entry = _existing_entry(hass, "user.1")
+
+    result = await entry.start_reauth_flow(hass)
+    result = await _submit_manual_credentials(hass, result, _mock_client("user.1"))
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "reauth_successful"
+    # Translated centrally, strings.json has no key for it.
+    assert result["translation_domain"] == "homeassistant"
+    assert entry.data["issue_token"] == VALID_ISSUE_TOKEN
+    assert entry.data["cookies"] == VALID_COOKIES
+    assert entry.data["account_type"] == "production"
+    assert result["setup_entry_calls"] == 1
+
+
+async def test_reauth_extension_same_account_updates_entry(
+    hass: HomeAssistant,
+) -> None:
+    """Test reauth through the extension step updates the entry."""
+    entry = _existing_entry(hass, "user.1")
+    code = base64.b64encode(
+        json.dumps(
+            {"issue_token": VALID_ISSUE_TOKEN, "cookies": VALID_COOKIES}
+        ).encode()
+    ).decode()
+
+    result = await entry.start_reauth_flow(hass)
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], user_input={"method": "extension"}
+    )
+    with (
+        patch(
+            "custom_components.nest_protect.config_flow.NestClient",
+            return_value=_mock_client("user.1"),
+        ),
+        patch("custom_components.nest_protect.async_setup_entry", return_value=True),
+    ):
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], user_input={"auth_code": code}
+        )
+        await hass.async_block_till_done()
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "reauth_successful"
+    assert entry.data["cookies"] == VALID_COOKIES
+
+
+async def test_reauth_different_account_aborts(hass: HomeAssistant) -> None:
+    """Test reauth with another Google account leaves the entry untouched."""
+    entry = _existing_entry(hass, "user.1")
+    original_data = dict(entry.data)
+
+    result = await entry.start_reauth_flow(hass)
+    result = await _submit_manual_credentials(hass, result, _mock_client("user.2"))
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "wrong_account"
+    assert dict(entry.data) == original_data
+    assert entry.unique_id == "user.1"
+    assert result["setup_entry_calls"] == 0
+
+
+async def test_reauth_extension_different_account_aborts(
+    hass: HomeAssistant,
+) -> None:
+    """Test reauth through the extension step rejects another account."""
+    entry = _existing_entry(hass, "user.1")
+    original_data = dict(entry.data)
+    code = base64.b64encode(
+        json.dumps(
+            {"issue_token": VALID_ISSUE_TOKEN, "cookies": VALID_COOKIES}
+        ).encode()
+    ).decode()
+
+    result = await entry.start_reauth_flow(hass)
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], user_input={"method": "extension"}
+    )
+    with patch(
+        "custom_components.nest_protect.config_flow.NestClient",
+        return_value=_mock_client("user.2"),
+    ):
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], user_input={"auth_code": code}
+        )
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "wrong_account"
+    assert dict(entry.data) == original_data
+
+
+async def test_reauth_legacy_unique_id_is_replaced(hass: HomeAssistant) -> None:
+    """Test reauth on an entry keyed by a legacy token adopts the account ID."""
+    entry = _existing_entry(hass, "legacy-refresh-token")
+
+    result = await entry.start_reauth_flow(hass)
+    result = await _submit_manual_credentials(hass, result, _mock_client("user.1"))
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "reauth_successful"
+    assert entry.unique_id == "user.1"
+    assert entry.data["cookies"] == VALID_COOKIES
+
+
+async def test_reauth_missing_unique_id_is_set(hass: HomeAssistant) -> None:
+    """Test reauth on an entry without unique ID stores the account ID."""
+    entry = _existing_entry(hass, None)
+
+    result = await entry.start_reauth_flow(hass)
+    result = await _submit_manual_credentials(hass, result, _mock_client("user.1"))
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "reauth_successful"
+    assert entry.unique_id == "user.1"
+
+
+async def test_reauth_legacy_entry_with_account_of_other_entry_aborts(
+    hass: HomeAssistant,
+) -> None:
+    """Test a legacy entry can't take over an account owned by another entry."""
+    _existing_entry(hass, "user.1")
+    legacy_entry = _existing_entry(hass, "legacy-refresh-token")
+    original_data = dict(legacy_entry.data)
+
+    result = await legacy_entry.start_reauth_flow(hass)
+    result = await _submit_manual_credentials(hass, result, _mock_client("user.1"))
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "already_configured"
+    assert legacy_entry.unique_id == "legacy-refresh-token"
+    assert dict(legacy_entry.data) == original_data
+
+
+async def test_reconfigure_same_account_updates_and_reloads(
+    hass: HomeAssistant,
+) -> None:
+    """Test reconfigure reuses the credential steps and updates the entry."""
+    entry = _existing_entry(hass, "user.1")
+
+    result = await entry.start_reconfigure_flow(hass)
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "auth_method"
+
+    result = await _submit_manual_credentials(hass, result, _mock_client("user.1"))
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "reconfigure_successful"
+    assert result["translation_domain"] == "homeassistant"
+    assert entry.data["issue_token"] == VALID_ISSUE_TOKEN
+    assert entry.data["cookies"] == VALID_COOKIES
+    assert result["setup_entry_calls"] == 1
+
+
+async def test_reconfigure_different_account_aborts(hass: HomeAssistant) -> None:
+    """Test reconfigure with another Google account leaves the entry untouched."""
+    entry = _existing_entry(hass, "user.1")
+    original_data = dict(entry.data)
+
+    result = await entry.start_reconfigure_flow(hass)
+    result = await _submit_manual_credentials(hass, result, _mock_client("user.2"))
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "wrong_account"
+    assert dict(entry.data) == original_data
+
+
+async def test_reconfigure_keeps_account_type(hass: HomeAssistant) -> None:
+    """Test reconfigure validates against the entry's environment."""
+    entry = _existing_entry(hass, "user.1")
+    hass.config_entries.async_update_entry(
+        entry, data={**entry.data, "account_type": "fieldtest"}
     )
 
-    launch_url = flow._build_auth_bridge_launch_url(session)
-    parsed = urlsplit(launch_url)
-    query = parse_qs(parsed.query)
+    result = await entry.start_reconfigure_flow(hass)
+    result = await _submit_manual_credentials(hass, result, _mock_client("user.1"))
 
-    assert parsed.scheme == "http"
-    assert parsed.netloc == "homeassistant.local:8123"
-    assert parsed.path == "/hassio/ingress/nest_protect_auth_bridge/"
-    assert query["session_id"] == ["session-1"]
-    assert query["secret"] == ["secret-1"]
-    assert query["callback_url"] == [
-        "http://supervisor/core/api/nest_protect/auth_bridge/session-1"
-    ]
+    assert result["reason"] == "reconfigure_successful"
+    assert entry.data["account_type"] == "fieldtest"
 
 
-def test_build_auth_bridge_launch_url_standalone_uses_configured_base_url():
-    """Test standalone launch URL uses the configured bridge base URL."""
-    flow = ConfigFlow()
-    flow._auth_bridge_mode = flow._AUTH_BRIDGE_MODE_STANDALONE
-    flow._auth_bridge_standalone_url = "http://192.168.178.104:8099"
-    session = AuthBridgeSession(
-        session_id="session-1",
-        secret="secret-1",
-        expires_at=datetime.datetime.now(datetime.UTC),
+async def test_account_link_normalizes_pasted_cookies(hass: HomeAssistant) -> None:
+    """Test a Cookie: prefix and line wraps in pasted cookies are tolerated."""
+    pasted = (
+        "Cookie: SID=abc12345678901234567\n8901234567890;\nHSID=def1234567890; "
+        "SSID=ghi1234567890;\r\n APISID=jkl1234567890; SAPISID=mno1234567890\n"
     )
+    client = _mock_client("user.1")
 
-    launch_url = flow._build_auth_bridge_launch_url(session)
-    parsed = urlsplit(launch_url)
-    query = parse_qs(parsed.query)
-
-    assert parsed.scheme == "http"
-    assert parsed.netloc == "192.168.178.104:8099"
-    assert parsed.path == "/"
-    assert query["session_id"] == ["session-1"]
-    assert query["secret"] == ["secret-1"]
-
-
-def test_build_auth_bridge_launch_url_standalone_omits_supervisor_callback():
-    """Test standalone launch URL does not include Supervisor callback data."""
-    flow = ConfigFlow()
-    flow._auth_bridge_mode = flow._AUTH_BRIDGE_MODE_STANDALONE
-    flow._auth_bridge_standalone_url = "https://bridge.example.test"
-    session = AuthBridgeSession(
-        session_id="session-1",
-        secret="secret-1",
-        expires_at=datetime.datetime.now(datetime.UTC),
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": "user"}
     )
-
-    launch_url = flow._build_auth_bridge_launch_url(session)
-    query = parse_qs(urlsplit(launch_url).query)
-
-    assert "callback_url" not in query
-    assert "supervisor/core" not in launch_url
-
-
-def test_validate_auth_bridge_base_url_rejects_invalid_url():
-    """Test standalone Auth Bridge URL validation requires absolute HTTP(S)."""
-    assert ConfigFlow._validate_auth_bridge_base_url("192.168.178.104:8099") is False
-    assert ConfigFlow._validate_auth_bridge_base_url("/local/path") is False
-    assert ConfigFlow._validate_auth_bridge_base_url("ftp://bridge.example") is False
-    assert (
-        ConfigFlow._validate_auth_bridge_base_url("http://192.168.178.104:8099")
-        is True
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], user_input={"account_type": "production"}
     )
+    result = await _submit_manual_credentials(hass, result, client, cookies=pasted)
 
-
-async def test_auth_bridge_standalone_step_rejects_invalid_url():
-    """Test standalone step rejects invalid bridge URLs with a field error."""
-    flow = ConfigFlow()
-    result = await flow.async_step_auth_bridge_standalone(
-        {CONF_AUTH_BRIDGE_STANDALONE_URL: "192.168.178.104:8099"}
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["data"]["cookies"] == VALID_COOKIES
+    client.get_access_token_from_cookies.assert_awaited_once_with(
+        VALID_ISSUE_TOKEN, VALID_COOKIES
     )
-
-    assert result["type"] == "form"
-    assert result["step_id"] == "auth_bridge_standalone"
-    assert result["errors"] == {
-        CONF_AUTH_BRIDGE_STANDALONE_URL: "invalid_auth_bridge_url"
-    }
+    assert result["result"].unique_id == "user.1"
