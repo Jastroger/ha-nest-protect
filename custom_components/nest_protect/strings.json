@@ -2,38 +2,45 @@
   "config": {
     "step": {
       "user": {
-        "description": "Select your Account Type. Most users will need to select Google Account. Field Test is only available for selected testers in the Google Field Test program.",
+        "description": "Choose a regular Google account unless you take part in the Google Field Test program.",
         "data": {
           "account_type": "Account Type"
-        }
+        },
+        "title": "Choose a Google account type"
       },
       "auth_method": {
-        "title": "Connect your Nest account",
-        "description": "On a phone, choose Auth Bridge. On a computer, you can also use the browser extension.",
-        "data": {
-          "method": "Sign-in method"
+        "title": "How do you want to sign in?",
+        "menu_options": {
+          "auth_bridge": "Sign in with Google",
+          "extension": "Chrome extension",
+          "account_link": "Manual setup"
+        },
+        "menu_option_descriptions": {
+          "auth_bridge": "Recommended on phones. Uses the Nest Protect Auth Bridge.",
+          "extension": "On a computer, copy a sign-in code from the Nest Auth Helper.",
+          "account_link": "Copy the Issue Token URL and cookies using the browser developer tools."
         }
       },
       "extension": {
-        "title": "Connect with Chrome Extension",
+        "title": "Sign in with the Chrome extension",
         "description": "1. [Download the Nest Auth Helper extension]({extension_download_url})\n2. Unzip and load it in Chrome (chrome://extensions → Developer Mode → Load Unpacked)\n3. Sign in to [home.nest.com]({nest_url})\n4. Click the extension icon → click **Extract Credentials**\n5. Copy the code and paste it below\n\n⚠️ Do not share this code — it contains your session credentials.",
         "data": {
-          "auth_code": "Authentication Code"
+          "auth_code": "Sign-in code"
         },
         "data_description": {
-          "auth_code": "The code displayed by the Nest Auth Helper extension"
+          "auth_code": "Paste the code shown by the Nest Auth Helper."
         }
       },
       "account_link": {
-        "title": "Connect Your Nest Account (Manual)",
+        "title": "Set up sign-in manually",
         "description": "Follow these steps to get your credentials:\n\n1. Open a **regular** Chrome/Edge browser window (not Incognito — third-party cookies must be enabled)\n2. Open **Developer Tools** (F12) → **Network** tab → Check **Preserve Log**\n3. In the filter box, type `issueToken`\n4. Go to [home.nest.com]({nest_url}) and sign in with Google\n5. Click the `iframerpc` request and copy the full **Request URL**\n6. In the filter box, type `oauth2/iframe`, click the last request, and copy the entire **Cookie** header value\n\n⚠️ Do not log out of home.nest.com after copying credentials.",
         "data": {
           "issue_token": "Issue Token URL",
           "cookies": "Cookies"
         },
         "data_description": {
-          "issue_token": "Full URL starting with {issue_token_prefix}...",
-          "cookies": "Complete cookie string from the oauth2/iframe request headers"
+          "issue_token": "Paste the full URL beginning with {issue_token_prefix}.",
+          "cookies": "Paste the complete Cookie header from the oauth2/iframe request."
         }
       },
       "auth_bridge": {
@@ -63,21 +70,21 @@
       },
       "auth_bridge_finish": {
         "title": "Could not connect the Nest account",
-        "description": "Select Continue to choose a sign-in method and try again."
+        "description": "Continue to choose a sign-in method and try again."
       }
     },
     "error": {
-      "cannot_connect": "[%key:common::config_flow::error::cannot_connect%]",
-      "invalid_auth": "[%key:common::config_flow::error::invalid_auth%]",
-      "invalid_issue_token": "Invalid issue token URL. Must start with {accounts_url} and contain the issueToken action.",
-      "invalid_cookies": "Invalid cookies format. Ensure you copied the complete cookie header from the oauth2/iframe request.",
-      "invalid_code": "Invalid authentication code. Make sure you copied the complete code from the extension.",
+      "cannot_connect": "Could not reach Nest. Try again in a moment.",
+      "invalid_auth": "Nest rejected the sign-in. Use the Google account that manages your Nest Protect devices.",
+      "invalid_issue_token": "Copy the full Google request URL containing action=issueToken.",
+      "invalid_cookies": "Copy the complete Cookie header from the oauth2/iframe request.",
+      "invalid_code": "Copy the full code from the Nest Auth Helper extension.",
       "unknown": "[%key:common::config_flow::error::unknown%]",
       "invalid_auth_bridge_url": "Enter a valid http:// or https:// address without credentials, query parameters or a fragment."
     },
     "abort": {
       "already_configured": "[%key:common::config_flow::abort::already_configured_account%]",
-      "wrong_account": "The credentials belong to a different Nest account than the one configured. Sign in with the original account, or add the other account as a new entry."
+      "wrong_account": "These credentials belong to a different Nest account. Sign in with the account originally used for this integration, or add the other account separately."
     }
   },
   "entity": {
@@ -213,11 +220,10 @@
     }
   },
   "selector": {
-    "auth_method": {
+    "account_type": {
       "options": {
-        "bridge": "Auth Bridge (phone or computer)",
-        "extension": "Browser extension (computer)",
-        "manual": "Enter credentials manually"
+        "production": "Google account",
+        "fieldtest": "Google Field Test account"
       }
     }
   }

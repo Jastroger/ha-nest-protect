@@ -2,51 +2,58 @@
   "config": {
     "abort": {
       "already_configured": "Account is al geconfigureerd",
-      "wrong_account": "The credentials belong to a different Nest account than the one configured. Sign in with the original account, or add the other account as a new entry."
+      "wrong_account": "Deze inloggegevens horen bij een ander Nest-account. Meld je aan met het oorspronkelijke account of voeg het andere account apart toe."
     },
     "error": {
-      "cannot_connect": "Kan niet verbinden",
-      "invalid_auth": "Ongeldige authenticatie",
-      "invalid_issue_token": "Ongeldige issue token URL. Moet beginnen met {accounts_url} en de issueToken-actie bevatten.",
-      "invalid_cookies": "Ongeldig cookie-formaat. Zorg ervoor dat je de volledige cookie-header van het oauth2/iframe-verzoek hebt gekopieerd.",
-      "invalid_code": "Ongeldige authenticatiecode. Controleer of je de volledige code van de extensie hebt gekopieerd.",
+      "cannot_connect": "Nest is niet bereikbaar. Probeer het zo opnieuw.",
+      "invalid_auth": "Nest heeft de aanmelding geweigerd. Gebruik het Google-account waarmee je je Nest Protect-melders beheert.",
+      "invalid_issue_token": "Kopieer de volledige Google-aanvraag-URL met action=issueToken.",
+      "invalid_cookies": "Kopieer de volledige Cookie-header van de oauth2/iframe-aanvraag.",
+      "invalid_code": "Kopieer de volledige code uit de Nest Auth Helper-extensie.",
       "unknown": "Onverwachte fout",
       "invalid_auth_bridge_url": "Voer een geldig http://- of https://-adres in zonder inloggegevens, queryparameters of fragment."
     },
     "step": {
       "user": {
-        "description": "Selecteer je accounttype. De meeste gebruikers moeten Google Account selecteren. Field Test is alleen beschikbaar voor geselecteerde testers in het Google Field Test-programma.",
+        "description": "Kies een normaal Google-account, tenzij je meedoet aan het Google Field Test-programma.",
         "data": {
           "account_type": "Accounttype"
-        }
+        },
+        "title": "Kies het type Google-account"
       },
       "auth_method": {
-        "title": "Verbind je Nest-account",
-        "description": "Kies op je telefoon de Auth Bridge. Op een computer kun je ook de browserextensie gebruiken.",
-        "data": {
-          "method": "Aanmeldmethode"
+        "title": "Hoe wil je je aanmelden?",
+        "menu_options": {
+          "auth_bridge": "Inloggen met Google",
+          "extension": "Chrome-extensie",
+          "account_link": "Handmatig instellen"
+        },
+        "menu_option_descriptions": {
+          "auth_bridge": "Aanbevolen op je telefoon. Gebruikt de Nest Protect Auth Bridge.",
+          "extension": "Kopieer op een computer een aanmeldcode uit Nest Auth Helper.",
+          "account_link": "Kopieer de Issue Token-URL en cookies via de ontwikkelaarstools van je browser."
         }
       },
       "extension": {
-        "title": "Verbinden met Chrome-extensie",
+        "title": "Aanmelden met de Chrome-extensie",
         "description": "1. [Download de Nest Auth Helper-extensie]({extension_download_url})\n2. Pak uit en laad in Chrome (chrome://extensions → Ontwikkelaarsmodus → Uitgepakt laden)\n3. Log in op [home.nest.com]({nest_url})\n4. Klik op het extensie-icoon → klik op **Extract Credentials**\n5. Kopieer de code en plak deze hieronder\n\n⚠️ Deel deze code niet — deze bevat je sessiegegevens.",
         "data": {
-          "auth_code": "Authenticatiecode"
+          "auth_code": "Aanmeldcode"
         },
         "data_description": {
-          "auth_code": "De code die wordt weergegeven door de Nest Auth Helper-extensie"
+          "auth_code": "Plak de code die Nest Auth Helper toont."
         }
       },
       "account_link": {
-        "title": "Verbind je Nest-account (handmatig)",
+        "title": "Aanmelding handmatig instellen",
         "description": "Volg deze stappen om je inloggegevens te verkrijgen:\n\n1. Open een **normaal** Chrome/Edge-browservenster (niet Incognito — cookies van derden moeten ingeschakeld zijn)\n2. Open **DevTools** (F12) → tabblad **Network** → Vink **Preserve log** aan\n3. Typ `issueToken` in het filtervak\n4. Ga naar [home.nest.com]({nest_url}) en log in met Google\n5. Klik op het `iframerpc`-verzoek en kopieer de volledige **Request URL**\n6. Typ `oauth2/iframe` in het filtervak, klik op het laatste verzoek en kopieer de volledige **Cookie**-headerwaarde\n\n⚠️ Log niet uit bij home.nest.com na het kopiëren van de inloggegevens.",
         "data": {
-          "issue_token": "Issue Token URL",
+          "issue_token": "Issue Token-URL",
           "cookies": "Cookies"
         },
         "data_description": {
-          "issue_token": "Volledige URL beginnend met {issue_token_prefix}...",
-          "cookies": "Volledige cookie-string van de oauth2/iframe-verzoekheaders"
+          "issue_token": "Plak de volledige URL die begint met {issue_token_prefix}.",
+          "cookies": "Plak de volledige Cookie-header van de oauth2/iframe-aanvraag."
         }
       },
       "auth_bridge": {
@@ -76,7 +83,7 @@
       },
       "auth_bridge_finish": {
         "title": "Het Nest-account kon niet worden verbonden",
-        "description": "Kies Doorgaan om opnieuw een aanmeldmethode te kiezen."
+        "description": "Ga verder om een aanmeldmethode te kiezen en het opnieuw te proberen."
       }
     }
   },
@@ -192,11 +199,10 @@
     }
   },
   "selector": {
-    "auth_method": {
+    "account_type": {
       "options": {
-        "bridge": "Auth Bridge (telefoon of computer)",
-        "extension": "Browserextensie (computer)",
-        "manual": "Inloggegevens handmatig invoeren"
+        "production": "Google-account",
+        "fieldtest": "Google Field Test-account"
       }
     }
   }

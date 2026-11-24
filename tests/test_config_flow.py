@@ -29,8 +29,9 @@ async def test_step_user_leads_to_auth_method(hass: HomeAssistant) -> None:
         result["flow_id"],
         user_input={"account_type": "production"},
     )
-    assert result["type"] is FlowResultType.FORM
+    assert result["type"] is FlowResultType.MENU
     assert result["step_id"] == "auth_method"
+    assert result["menu_options"] == ["auth_bridge", "extension", "account_link"]
 
 
 async def test_auth_method_extension_leads_to_extension_step(
@@ -46,7 +47,7 @@ async def test_auth_method_extension_leads_to_extension_step(
     )
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"],
-        user_input={"method": "extension"},
+        user_input={"next_step_id": "extension"},
     )
     assert result["type"] is FlowResultType.FORM
     assert result["step_id"] == "extension"
@@ -65,7 +66,7 @@ async def test_auth_method_manual_leads_to_account_link(
     )
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"],
-        user_input={"method": "manual"},
+        user_input={"next_step_id": "account_link"},
     )
     assert result["type"] is FlowResultType.FORM
     assert result["step_id"] == "account_link"
@@ -88,7 +89,7 @@ async def test_account_link_stores_refreshed_cookies(
     )
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"],
-        user_input={"method": "manual"},
+        user_input={"next_step_id": "account_link"},
     )
 
     client = MagicMock()
@@ -137,7 +138,7 @@ async def test_extension_step_creates_entry(hass: HomeAssistant) -> None:
     )
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"],
-        user_input={"method": "extension"},
+        user_input={"next_step_id": "extension"},
     )
     assert result["step_id"] == "extension"
 
@@ -178,7 +179,7 @@ async def test_extension_step_stores_refreshed_cookies(
     )
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"],
-        user_input={"method": "extension"},
+        user_input={"next_step_id": "extension"},
     )
 
     client = MagicMock()
@@ -221,7 +222,7 @@ async def test_extension_step_invalid_code(hass: HomeAssistant) -> None:
     )
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"],
-        user_input={"method": "extension"},
+        user_input={"next_step_id": "extension"},
     )
 
     result = await hass.config_entries.flow.async_configure(
@@ -250,7 +251,7 @@ async def test_extension_step_auth_failure(hass: HomeAssistant) -> None:
     )
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"],
-        user_input={"method": "extension"},
+        user_input={"next_step_id": "extension"},
     )
 
     with patch(
@@ -281,7 +282,7 @@ async def test_reauth_shows_auth_method(hass: HomeAssistant) -> None:
     entry.add_to_hass(hass)
 
     result = await entry.start_reauth_flow(hass)
-    assert result["type"] is FlowResultType.FORM
+    assert result["type"] is FlowResultType.MENU
     assert result["step_id"] == "auth_method"
 
 
@@ -290,7 +291,7 @@ async def test_reauth_shows_auth_method(hass: HomeAssistant) -> None:
     [NestServiceException("503 error"), BadGatewayException("502 error")],
 )
 @pytest.mark.parametrize("source", ["user", "reauth"])
-@pytest.mark.parametrize("method", ["extension", "manual"])
+@pytest.mark.parametrize("method", ["extension", "account_link"])
 async def test_transient_service_error_shows_cannot_connect(
     hass: HomeAssistant, error: Exception, source: str, method: str
 ) -> None:
@@ -320,7 +321,7 @@ async def test_transient_service_error_shows_cannot_connect(
 
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"],
-        user_input={"method": method},
+        user_input={"next_step_id": method},
     )
 
     if method == "extension":
@@ -393,7 +394,7 @@ async def _submit_manual_credentials(
     cookies: str = VALID_COOKIES,
 ) -> dict:
     result = await hass.config_entries.flow.async_configure(
-        result["flow_id"], user_input={"method": "manual"}
+        result["flow_id"], user_input={"next_step_id": "account_link"}
     )
     assert result["step_id"] == "account_link"
 
@@ -446,7 +447,7 @@ async def test_reauth_extension_same_account_updates_entry(
 
     result = await entry.start_reauth_flow(hass)
     result = await hass.config_entries.flow.async_configure(
-        result["flow_id"], user_input={"method": "extension"}
+        result["flow_id"], user_input={"next_step_id": "extension"}
     )
     with (
         patch(
@@ -494,7 +495,7 @@ async def test_reauth_extension_different_account_aborts(
 
     result = await entry.start_reauth_flow(hass)
     result = await hass.config_entries.flow.async_configure(
-        result["flow_id"], user_input={"method": "extension"}
+        result["flow_id"], user_input={"next_step_id": "extension"}
     )
     with patch(
         "custom_components.nest_protect.config_flow.NestClient",
@@ -558,7 +559,7 @@ async def test_reconfigure_same_account_updates_and_reloads(
     entry = _existing_entry(hass, "user.1")
 
     result = await entry.start_reconfigure_flow(hass)
-    assert result["type"] is FlowResultType.FORM
+    assert result["type"] is FlowResultType.MENU
     assert result["step_id"] == "auth_method"
 
     result = await _submit_manual_credentials(hass, result, _mock_client("user.1"))

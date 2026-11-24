@@ -332,7 +332,7 @@ async def test_addon_menu_option_opens_ingress(hass):
     result = await flow.async_init(DOMAIN, context={"source": "user"})
     flow_id = result["flow_id"]
     await flow.async_configure(flow_id, {"account_type": "production"})
-    await flow.async_configure(flow_id, {"method": "bridge"})
+    await flow.async_configure(flow_id, {"next_step_id": "auth_bridge"})
 
     result = await flow.async_configure(flow_id, {"next_step_id": "auth_bridge_addon"})
     assert result["type"] is FlowResultType.EXTERNAL_STEP
@@ -366,9 +366,10 @@ async def test_mobile_bridge_flow_uses_native_link_and_waits_for_callback(
     result = await flow.async_init(DOMAIN, context={"source": "user"})
     flow_id = result["flow_id"]
     result = await flow.async_configure(flow_id, {"account_type": "production"})
-    assert result["type"] is FlowResultType.FORM
+    assert result["type"] is FlowResultType.MENU
+    assert result["step_id"] == "auth_method"
 
-    result = await flow.async_configure(flow_id, {"method": "bridge"})
+    result = await flow.async_configure(flow_id, {"next_step_id": "auth_bridge"})
     assert result["type"] is FlowResultType.MENU
     assert result["menu_options"] == ["auth_bridge_addon", "auth_bridge_standalone"]
 
