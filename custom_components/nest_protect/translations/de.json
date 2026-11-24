@@ -6,7 +6,7 @@
     },
     "error": {
       "cannot_connect": "Verbindung fehlgeschlagen",
-      "invalid_auth": "Ungültige Authentifizierung",
+      "invalid_auth": "Nest hat die Anmeldung abgelehnt. Melde dich mit dem Google-Konto deiner Nest-Protect-Melder an.",
       "unknown": "Unerwarteter Fehler",
       "invalid_issue_token": "Invalid issue token URL. Must start with {accounts_url} and contain the issueToken action.",
       "invalid_cookies": "Invalid cookies format. Ensure you copied the complete cookie header from the oauth2/iframe request.",
@@ -18,11 +18,12 @@
         "data": {
           "account_type": "Kontotyp"
         },
-        "description": "Select your Account Type. Most users will need to select Google Account. Field Test is only available for selected testers in the Google Field Test program."
+        "description": "Wähle für deine Nest-Protect-Melder dein normales Google-Konto. „Field Test“ ist nur für Teilnehmer am Google-Testprogramm.",
+        "title": "Nest-Konto auswählen"
       },
       "auth_method": {
         "title": "Nest-Konto verbinden",
-        "description": "Am Handy wählst du die Auth Bridge. Am Computer kannst du auch die Browser-Erweiterung verwenden.",
+        "description": "Wähle für die Einrichtung am Handy „Anmeldung im Browser“. Am Computer kannst du alternativ die Browser-Erweiterung verwenden.",
         "data": {
           "method": "Anmeldemethode"
         }
@@ -50,29 +51,29 @@
         }
       },
       "auth_bridge": {
-        "title": "Auth Bridge auswählen",
-        "description": "Wähle Standalone Docker, wenn Home Assistant in Docker läuft. Wähle Add-on, wenn du die Bridge in Home Assistant OS installiert hast.",
+        "title": "Wo läuft deine Anmeldung?",
+        "description": "Wähle „Docker“, wenn du die Bridge als eigenen Container betreibst. Bei einer Installation als App in Home Assistant OS wählst du „Home Assistant OS“.",
         "data": {
-          "mode": "Art der Bridge"
+          "mode": "Installation der Bridge"
         }
       },
       "auth_bridge_standalone": {
-        "title": "Adresse der Auth Bridge eingeben",
-        "description": "Gib die Adresse ein, die du von diesem Gerät aus erreichst, inklusive http:// oder https:// und dem Port der Bridge.",
+        "title": "Adresse der Anmeldung",
+        "description": "Gib die Adresse der Bridge ein, die du von diesem Gerät aus öffnen kannst.",
         "data": {
           "bridge_url": "Adresse der Bridge"
         },
         "data_description": {
-          "bridge_url": "Beispiel: http://192.168.178.27:8099"
+          "bridge_url": "Beispiel: http://192.168.1.20:8099"
         }
       },
       "auth_bridge_login": {
         "title": "Bei Nest anmelden",
-        "description": "Öffne die Auth Bridge, tippe auf Start Login und melde dich mit dem Google-Konto deiner Nest-Protect-Melder an. Kehre danach hierher zurück."
+        "description": "Öffne die Anmeldeseite und tippe auf **Google-Anmeldung öffnen**. Folge den Hinweisen von Google. Sobald die Seite die Übergabe bestätigt, kehrst du hierher zurück."
       },
       "auth_bridge_finish": {
         "title": "Nest-Konto konnte nicht verbunden werden",
-        "description": "Tippe auf Weiter, um die Anmeldemethode erneut auszuwählen."
+        "description": "Tippe auf **Weiter**, um die Anmeldemethode erneut auszuwählen."
       }
     }
   },
@@ -90,15 +91,15 @@
   "selector": {
     "auth_method": {
       "options": {
-        "bridge": "Auth Bridge (Handy oder Computer)",
+        "bridge": "Anmeldung im Browser (empfohlen am Handy)",
         "extension": "Browser-Erweiterung (Computer)",
         "manual": "Anmeldedaten manuell eingeben"
       }
     },
     "auth_bridge_mode": {
       "options": {
-        "standalone": "Standalone Docker",
-        "addon": "Home-Assistant-Add-on"
+        "standalone": "Docker",
+        "addon": "Home Assistant OS"
       }
     }
   }

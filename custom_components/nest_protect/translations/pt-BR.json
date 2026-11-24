@@ -63,12 +63,12 @@
           "bridge_url": "Endereço da ponte"
         },
         "data_description": {
-          "bridge_url": "Exemplo: http://192.168.178.27:8099"
+          "bridge_url": "Exemplo: http://192.168.1.20:8099"
         }
       },
       "auth_bridge_login": {
         "title": "Entrar no Nest",
-        "description": "Abra a ponte, selecione Start Login e entre com a conta Google dos seus detectores Nest Protect. Depois, volte para cá."
+        "description": "Abra a ponte, selecione Open Google sign-in e entre com a conta Google dos seus detectores Nest Protect. Depois, volte para cá."
       },
       "auth_bridge_finish": {
         "title": "Não foi possível conectar a conta Nest",

@@ -3,142 +3,182 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width,initial-scale=1">
-    <title>Nest Protect Auth Bridge</title>
+    <title>Nest Protect</title>
     <style>
-      :root { color-scheme: light dark; font: 1rem/1.5 system-ui, sans-serif; }
-      body { margin: 0; padding: clamp(0.75rem, 3vw, 2rem); }
-      main { max-width: 72rem; margin: auto; }
-      h1 { margin: 0; font-size: clamp(1.45rem, 5vw, 2rem); }
-      p { margin: 0.5rem 0 1rem; }
-      .controls { display: flex; flex-wrap: wrap; gap: 0.55rem; margin-block: 1rem; }
-      button { font: inherit; min-height: 44px; padding: 0.5rem 0.9rem; border-radius: 0.6rem; }
-      .primary { background: #075b8a; color: #fff; border: 1px solid transparent; }
-      button:disabled { opacity: 0.55; cursor: not-allowed; }
-      .status { padding: 0.7rem 0.9rem; border: 1px solid GrayText; border-radius: 0.7rem; }
-      .status p { margin-block: 0.25rem; }
-      iframe { display: block; box-sizing: border-box; width: 100%; height: 62vh; height: 62dvh;
-        min-height: 19rem; border: 1px solid GrayText; border-radius: 0.7rem; margin-top: 1rem; }
-      iframe:fullscreen { width: 100%; height: 100%; border: 0; margin: 0; }
+      :root {
+        color-scheme: light dark;
+        font: 1rem/1.55 system-ui, sans-serif;
+        --background: #edf3f6; --surface: #fff; --text: #153044;
+        --muted: #456174; --border: #c7d8e1; --accent: #005f82;
+        --action: #006282; --on-action: #fff;
+        --info: #edf6fb; --success: #e6f6ef; --success-ink: #175b43;
+        --warning: #fff3e5; --warning-ink: #794014;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --background: #101b25; --surface: #172734; --text: #eff6fa;
+          --muted: #bed0db; --border: #405766; --accent: #8cddf7;
+          --action: #8cddf7; --on-action: #102633;
+          --info: #193747; --success: #193b31; --success-ink: #b6f2db;
+          --warning: #422d23; --warning-ink: #ffdab9;
+        }
+      }
+      * { box-sizing: border-box; }
+      body { margin: 0; padding: clamp(.75rem, 4vw, 2.5rem); background: var(--background); color: var(--text); }
+      main { max-width: 64rem; margin: auto; }
+      .card {
+        padding: clamp(1rem, 4.5vw, 2rem); background: var(--surface);
+        border: 1px solid var(--border); border-radius: 1.25rem;
+      }
+      h1 { margin: 0; font-size: clamp(1.6rem, 6vw, 2.35rem); line-height: 1.15; letter-spacing: -.025em; }
+      p { margin: .55rem 0 0; }
+      header p { color: var(--muted); }
+      .status { margin-top: 1.25rem; border-radius: .8rem; padding: .85rem 1rem;
+        background: var(--info); border-inline-start: .25rem solid var(--accent); }
+      .status[data-tone="success"] { background: var(--success); border-color: var(--success-ink); }
+      .status[data-tone="warning"] { background: var(--warning); border-color: var(--warning-ink); }
+      .status p { margin-top: .2rem; }
+      .controls { display: flex; flex-wrap: wrap; gap: .6rem; margin-top: 1rem; }
+      button { font: inherit; font-weight: 650; min-height: 48px; padding: .55rem 1rem;
+        border: 1px solid var(--border); border-radius: .7rem; background: var(--surface); color: var(--text); cursor: pointer; }
+      button.primary { color: var(--on-action); background: var(--action); border-color: transparent; }
+      button:disabled { opacity: .55; cursor: default; }
+      button:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+      .browser { margin-top: 1rem; border: 1px solid var(--border); border-radius: .9rem; overflow: hidden; background: var(--surface); }
+      .browser-help { display: none; margin: 0; padding: .65rem .85rem; color: var(--muted); }
+      @media (pointer: coarse) { .browser-help { display: block; } }
+      iframe { display: block; width: 100%; height: 62vh; height: 62dvh; min-height: 19rem; border: 0; }
+      @media (max-width: 38rem) {
+        .controls form, .controls button { width: 100%; }
+        .browser { margin-inline: -.25rem; }
+      }
       [hidden] { display: none !important; }
     </style>
   </head>
   <body>
     <main>
-      <h1 data-text="title">Connect Nest Protect</h1>
-      <p data-text="intro">Sign in with your Google account in the browser below, then return to Home Assistant.</p>
+      <section class="card" aria-labelledby="title">
+        <header>
+          <h1 id="title" data-text="title">Connect Nest Protect</h1>
+          <p data-text="intro">Use the Google account that owns your Nest Protect devices.</p>
+        </header>
 
-      <div class="controls">
-        <form action="start" method="post" id="start-form">
-          <button class="primary" id="start-button" type="submit" data-text="start">Start Login</button>
-        </form>
-        <form action="reset" method="post">
-          <button id="reset-button" type="submit" data-text="reset">Start over</button>
-        </form>
-        <button id="fullscreen-button" type="button" data-text="fullscreen" hidden>Full screen</button>
-      </div>
+        <section class="status" id="notice" role="status" aria-live="polite" aria-atomic="true">
+          <strong id="status"></strong>
+          <p id="message"></p>
+        </section>
 
-      <section class="status" aria-live="polite">
-        <strong id="status"></strong>
-        <p id="message"></p>
+        <div class="controls" id="controls" hidden>
+          <form action="start" method="post" id="start-form" hidden>
+            <button class="primary" id="start-button" type="submit" data-text="start">Open Google sign-in</button>
+          </form>
+          <form action="reset" method="post" id="reset-form" hidden>
+            <button id="reset-button" type="submit" data-text="reset">Start over</button>
+          </form>
+        </div>
       </section>
 
-      <p id="verification" hidden>
-        <span data-text="verification"></span>
-        <a href="https://g.co/sc" target="_blank" rel="noopener noreferrer">g.co/sc</a>
-      </p>
-      <iframe id="vnc-frame" title="Nest login browser" allow="clipboard-read; clipboard-write" hidden></iframe>
+      <section class="browser" id="browser" hidden>
+        <p class="browser-help" data-text="typing"></p>
+        <iframe id="vnc-frame" title="Google sign-in" allow="clipboard-read; clipboard-write"></iframe>
+      </section>
     </main>
-
     <script>
-      const copy = navigator.language.toLowerCase().startsWith('de') ? {
+      const german = navigator.language.toLowerCase().startsWith('de');
+      const copy = german ? {
         title: 'Nest Protect verbinden',
-        intro: 'Melde dich unten im Browser mit deinem Google-Konto an und kehre danach zu Home Assistant zurück.',
-        start: 'Anmeldung starten', reset: 'Von vorn anfangen', fullscreen: 'Vollbild', browser: 'Browser für die Nest-Anmeldung',
-        resetting: 'Der Browser wird geschlossen. Öffne danach einen neuen Anmeldelink in Home Assistant.',
-        verification: 'Wenn Google diesen Link anzeigt, öffne ihn direkt auf dem Handy und kehre nach der Bestätigung hierher zurück:',
-        starting: 'Browser wird gestartet', waiting: 'Melde dich bei Google an.',
-        posting: 'Home Assistant übernimmt die Anmeldung.',
-        done: 'Anmeldung abgeschlossen. Wechsle zurück zu Home Assistant.',
-        missing: 'Öffne den Anmeldelink über die Nest-Protect-Einrichtung in Home Assistant.',
-        retry: 'Starte die Anmeldung über Home Assistant erneut.',
-        offline: 'Verbindung zur Auth Bridge unterbrochen. Es wird erneut versucht.',
+        intro: 'Verwende das Google-Konto, zu dem deine Nest-Protect-Melder gehören.',
+        start: 'Google-Anmeldung öffnen', reset: 'Von vorn anfangen', browser: 'Google-Anmeldung',
+        typing: 'Fehlt die Tastatur? Tippe links im Browserfenster auf das Tastatursymbol.',
+        ready: ['Bereit zur Anmeldung', 'Tippe auf „Google-Anmeldung öffnen“. Das Browserfenster erscheint hier auf der Seite.'],
+        starting: ['Browser wird geöffnet', 'Das dauert einen Moment.'],
+        signingIn: ['Bei Google anmelden', 'Tippe unten auf „Mit Google-Konto anmelden“. Falls Google eine Bestätigung verlangt, führe sie aus und lass diese Seite geöffnet.'],
+        posting: ['Anmeldung wird an Home Assistant übergeben', 'Warte hier, bis die Übergabe bestätigt ist.'],
+        done: ['Anmeldung übergeben', 'Wechsle zurück zu Home Assistant. Nest Protect erscheint nach Abschluss der Einrichtung unter Geräte & Dienste.'],
+        missing: ['In Home Assistant beginnen', 'Öffne dort die Nest-Protect-Einrichtung und folge dem Anmeldelink, den Home Assistant anzeigt.'],
+        resetPending: ['Anmeldung wird beendet', 'Öffne danach einen neuen Anmeldelink in Home Assistant.'],
+        failed: ['Anmeldung konnte nicht abgeschlossen werden', 'Tippe auf „Von vorn anfangen“ und starte die Einrichtung erneut in Home Assistant.'],
+        timeout: ['Anmeldung abgelaufen', 'Tippe auf „Von vorn anfangen“ und öffne einen neuen Anmeldelink in Home Assistant.'],
+        offline: ['Verbindung unterbrochen', 'Die Seite versucht automatisch, die Verbindung wiederherzustellen.'],
       } : {
         title: 'Connect Nest Protect',
-        intro: 'Sign in with your Google account in the browser below, then return to Home Assistant.',
-        start: 'Start Login', reset: 'Start over', fullscreen: 'Full screen', browser: 'Nest login browser',
-        resetting: 'Closing the browser. Then open a new sign-in link in Home Assistant.',
-        verification: 'If Google shows this address, open it directly on your phone. Return here after verifying:',
-        starting: 'Starting the browser', waiting: 'Sign in to your Google account.',
-        posting: 'Finishing sign-in in Home Assistant.',
-        done: 'Signed in. Return to Home Assistant.',
-        missing: 'Open the sign-in link from the Nest Protect setup in Home Assistant.',
-        retry: 'Start sign-in again from Home Assistant.',
-        offline: 'Connection to the Auth Bridge was interrupted. Retrying.',
+        intro: 'Use the Google account that owns your Nest Protect devices.',
+        start: 'Open Google sign-in', reset: 'Start over', browser: 'Google sign-in',
+        typing: 'Need the keyboard? Tap the keyboard symbol on the left of the browser window.',
+        ready: ['Ready to sign in', 'Select “Open Google sign-in”. The browser will open on this page.'],
+        starting: ['Opening the browser', 'This takes a moment.'],
+        signingIn: ['Sign in to Google', 'Select “Sign in with Google” below. If Google asks you to verify your identity, do so and leave this page open.'],
+        posting: ['Sending your sign-in to Home Assistant', 'Wait here until the transfer is confirmed.'],
+        done: ['Sign-in sent', 'Return to Home Assistant. Nest Protect will appear under Devices & services when setup is complete.'],
+        missing: ['Start in Home Assistant', 'Open the Nest Protect setup there and follow the sign-in link shown by Home Assistant.'],
+        resetPending: ['Closing the sign-in session', 'Then open a new sign-in link in Home Assistant.'],
+        failed: ['Could not finish signing in', 'Select “Start over” and start setup again in Home Assistant.'],
+        timeout: ['Sign-in expired', 'Select “Start over” and open a new sign-in link in Home Assistant.'],
+        offline: ['Connection interrupted', 'This page will try to reconnect automatically.'],
       };
-      document.documentElement.lang = navigator.language.toLowerCase().startsWith('de') ? 'de' : 'en';
+      document.documentElement.lang = german ? 'de' : 'en';
       document.querySelectorAll('[data-text]').forEach((node) => {
         node.textContent = copy[node.dataset.text];
       });
+
       const frame = document.getElementById('vnc-frame');
       frame.title = copy.browser;
+      frame.addEventListener('load', () => {
+        for (const id of ['noVNC_fullscreen_button', 'noVNC_settings_button']) {
+          frame.contentDocument?.getElementById(id)?.style.setProperty('display', 'none', 'important');
+        }
+      });
       const basePath = window.location.pathname.replace(/[^/]*$/, '');
       const websockifyPath = basePath.replace(/^\//, '') + 'websockify';
-
+      const notice = document.getElementById('notice');
+      const status = document.getElementById('status');
+      const message = document.getElementById('message');
+      const startForm = document.getElementById('start-form');
+      const resetForm = document.getElementById('reset-form');
       const params = new URLSearchParams(window.location.search);
-      const hasLaunchValues = ['session_id', 'secret'].every((key) => {
-        const value = params.get(key);
-        return value && value.trim().length > 0;
-      });
+      const hasLaunchValues = ['session_id', 'secret'].every((key) => Boolean(params.get(key)?.trim()));
 
       if (hasLaunchValues) {
-        const form = document.getElementById('start-form');
-        ['session_id', 'secret', 'callback_url'].forEach((key) => {
-          if (!params.has(key)) {
-            return;
-          }
+        for (const key of ['session_id', 'secret', 'callback_url']) {
+          if (!params.has(key)) continue;
           const input = document.createElement('input');
           input.type = 'hidden';
           input.name = key;
           input.value = params.get(key);
-          form.appendChild(input);
-        });
-
+          startForm.appendChild(input);
+        }
       }
 
-      const fullscreen = document.getElementById('fullscreen-button');
-      fullscreen.addEventListener('click', () => {
-        if (frame.requestFullscreen) frame.requestFullscreen().catch(() => {});
-      });
+      function showNotice(key, tone = 'info') {
+        if (notice.dataset.step === key) return;
+        notice.dataset.step = key;
+        notice.dataset.tone = tone;
+        [status.textContent, message.textContent] = copy[key];
+      }
 
       function renderStatus(data) {
         const busy = data.running || data.status === 'browser_starting';
-        document.getElementById('start-button').disabled = !hasLaunchValues || busy;
+        const failed = data.status === 'failed' || data.status === 'timeout';
+        const done = data.status === 'done' && !hasLaunchValues;
+        const showBrowser = busy && !data.resetting &&
+          !['browser_starting', 'posting_to_home_assistant', 'done', 'failed', 'timeout'].includes(data.status);
+        startForm.hidden = !hasLaunchValues || busy || done;
+        resetForm.hidden = !(busy || failed);
+        document.getElementById('controls').hidden = startForm.hidden && resetForm.hidden;
         document.getElementById('reset-button').disabled = Boolean(data.resetting);
-        fullscreen.hidden = !busy || !frame.requestFullscreen;
-        document.getElementById('verification').hidden = !busy;
-        frame.hidden = !busy;
-        if (busy && !frame.getAttribute('src')) {
+        document.getElementById('browser').hidden = !showBrowser;
+        if (showBrowser && !frame.getAttribute('src')) {
           frame.src = 'novnc/vnc.html?autoconnect=true&resize=scale&view_only=false&show_dot=false&path=' +
             encodeURIComponent(websockifyPath);
         }
-        let status = copy.waiting;
-        let hint = '';
-        if (data.resetting) {
-          status = copy.resetting;
-        } else if (data.status === 'done') {
-          status = copy.done;
-        } else if (data.status === 'failed' || data.status === 'timeout') {
-          status = data.message || copy.retry;
-          hint = copy.retry;
-        } else if (data.status === 'browser_starting') {
-          status = copy.starting;
-        } else if (data.status === 'posting_to_home_assistant') {
-          status = copy.posting;
-        } else if (!hasLaunchValues && !busy) {
-          status = copy.missing;
-        }
-        document.getElementById('status').textContent = status;
-        document.getElementById('message').textContent = hint;
+
+        if (data.resetting) showNotice('resetPending');
+        else if (done) showNotice('done', 'success');
+        else if (failed) showNotice(data.status === 'timeout' ? 'timeout' : 'failed', 'warning');
+        else if (data.status === 'browser_starting') showNotice('starting');
+        else if (data.status === 'posting_to_home_assistant') showNotice('posting');
+        else if (busy) showNotice('signingIn');
+        else showNotice(hasLaunchValues ? 'ready' : 'missing');
       }
 
       async function pollStatus() {
@@ -147,12 +187,13 @@
           if (!response.ok) throw new Error('Status unavailable');
           renderStatus(await response.json());
         } catch {
-          document.getElementById('status').textContent = copy.offline;
+          showNotice('offline', 'warning');
         } finally {
           setTimeout(pollStatus, 1000);
         }
       }
 
+      showNotice(hasLaunchValues ? 'ready' : 'missing');
       pollStatus();
     </script>
   </body>

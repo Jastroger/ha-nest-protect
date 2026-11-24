@@ -63,12 +63,12 @@
           "bridge_url": "Bridge address"
         },
         "data_description": {
-          "bridge_url": "Example: http://192.168.178.27:8099"
+          "bridge_url": "Example: http://192.168.1.20:8099"
         }
       },
       "auth_bridge_login": {
         "title": "Sign in to Nest",
-        "description": "Open the Auth Bridge, select Start Login and sign in to the Google account that owns your Nest Protect devices. Then return here."
+        "description": "Open the sign-in page, select **Open Google sign-in** and follow Google's instructions. Return here when the page confirms that your sign-in was sent."
       },
       "auth_bridge_finish": {
         "title": "Could not connect the Nest account",

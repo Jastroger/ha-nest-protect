@@ -53,8 +53,8 @@ For **Home Assistant OS**, install and start the Nest Protect Auth Bridge as a l
 1. In Home Assistant, add **Nest Protect** and choose **Auth Bridge (phone or computer)**.
 2. Select **Standalone Docker** or **Home Assistant add-on**. For Docker, enter the bridge address reachable from your phone or computer, for example `http://192.168.1.20:8099`.
 3. Use the **Open website** button in Home Assistant. It passes the one-time session details to the bridge.
-4. Select **Start Login** and sign in to Google. On a phone, use **Full screen** if the embedded browser is too small. If Google displays the verification address, use the link below the status to verify in a separate tab, then return to the bridge.
-5. Return to Home Assistant once the bridge confirms sign-in. To clear a stalled sign-in, select **Start over**, wait for the browser to close, and start a new Home Assistant flow.
+4. Select **Open Google sign-in** and follow Google's instructions in the embedded browser. If Google asks you to verify your identity, complete that step and leave the sign-in page open.
+5. Return to Home Assistant once the bridge confirms that it sent your sign-in. To clear a stalled sign-in, select **Start over**, wait for the browser to close, and start a new Home Assistant flow.
 
 From outside your home network, connect to your home VPN before opening the bridge. If Google refuses the embedded browser, try the browser extension on a computer.
 

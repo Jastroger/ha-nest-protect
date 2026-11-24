@@ -63,12 +63,12 @@
           "bridge_url": "Adres van de bridge"
         },
         "data_description": {
-          "bridge_url": "Voorbeeld: http://192.168.178.27:8099"
+          "bridge_url": "Voorbeeld: http://192.168.1.20:8099"
         }
       },
       "auth_bridge_login": {
         "title": "Meld je aan bij Nest",
-        "description": "Open de Auth Bridge, kies Start Login en meld je aan met het Google-account van je Nest Protect-melders. Kom daarna hier terug."
+        "description": "Open de Auth Bridge, kies Open Google sign-in en meld je aan met het Google-account van je Nest Protect-melders. Kom daarna hier terug."
       },
       "auth_bridge_finish": {
         "title": "Het Nest-account kon niet worden verbonden",
