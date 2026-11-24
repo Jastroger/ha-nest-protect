@@ -49,6 +49,7 @@ state: dict[str, Any] = {
     "error": "",
     "running": False,
     "cancel_requested": False,
+    "reset_requested": False,
 }
 
 
@@ -75,10 +76,6 @@ def _mask_secret(value: str) -> str:
 def _set_state(**kwargs: Any) -> None:
     with state_lock:
         state.update(kwargs)
-
-
-def _clear_sensitive_state() -> None:
-    _set_state(session_id="", secret="", callback_url="", issue_token="", cookies="")
 
 
 def _is_issue_token_url(url: str) -> bool:
@@ -241,20 +238,11 @@ def _wait_for_capture(
 
 
 def _capture_flow(session_id: str, secret: str, callback_url: str) -> None:
-    _set_state(
-        status=BROWSER_STARTING,
-        message="Starting browser",
-        issue_token="",
-        cookies="",
-        error="",
-        running=True,
-        cancel_requested=False,
-    )
-
-    profile_dir = tempfile.mkdtemp(prefix="nest-auth-bridge-")
+    profile_dir = None
     context = None
 
     try:
+        profile_dir = tempfile.mkdtemp(prefix="nest-auth-bridge-")
         from playwright.sync_api import Error, sync_playwright
 
         timeout_seconds = int(
@@ -289,7 +277,8 @@ def _capture_flow(session_id: str, secret: str, callback_url: str) -> None:
 
             def google_rejected_embedded_browser() -> bool:
                 try:
-                    body_text = page.locator("body").inner_text(timeout=500)
+                    active_page = context.pages[-1] if context.pages else page
+                    body_text = active_page.locator("body").inner_text(timeout=500)
                 except Error:
                     return False
                 return "This browser or app may not be secure" in body_text
@@ -346,9 +335,15 @@ def _capture_flow(session_id: str, secret: str, callback_url: str) -> None:
                 context.close()
             except Exception:
                 LOGGER.debug("Failed closing browser context", exc_info=True)
-        shutil.rmtree(profile_dir, ignore_errors=True)
-        _clear_sensitive_state()
-        _set_state(running=False)
+        if profile_dir is not None:
+            shutil.rmtree(profile_dir, ignore_errors=True)
+        with state_lock:
+            if state["reset_requested"]:
+                state.update(status=WAITING_FOR_LOGIN, message="Idle", error="")
+            state.update(
+                session_id="", secret="", callback_url="", issue_token="", cookies="",
+                running=False, cancel_requested=False, reset_requested=False,
+            )
 
 
 @app.get("/")
@@ -356,8 +351,11 @@ def index() -> str:
     return render_template("index.html")
 
 
-@app.route("/start", methods=["POST", "GET"])
+@app.post("/start")
 def start() -> Any:
+    with state_lock:
+        if state["running"]:
+            return redirect("./")
     session_id, secret, callback_url = _extract_launch_values()
 
     if not session_id or not secret:
@@ -387,52 +385,63 @@ def start() -> Any:
         return redirect("./")
 
     with state_lock:
-        if state.get("running"):
+        if state["running"]:
             return redirect("./")
 
-    _set_state(
-        session_id=session_id,
-        secret=secret,
-        callback_url=callback_url,
-        status=BROWSER_STARTING,
-        message="Starting browser",
-        error="",
-        cancel_requested=False,
-    )
+        # Reserve the worker slot before releasing the lock or creating the thread.
+        state.update(
+            session_id=session_id,
+            secret=secret,
+            callback_url=callback_url,
+            status=BROWSER_STARTING,
+            message="Starting browser",
+            issue_token="",
+            cookies="",
+            error="",
+            running=True,
+            cancel_requested=False,
+            reset_requested=False,
+        )
 
-    thread = threading.Thread(
-        target=_capture_flow,
-        args=(session_id, secret, callback_url),
-        daemon=True,
-    )
-    thread.start()
-
+    try:
+        threading.Thread(
+            target=_capture_flow,
+            args=(session_id, secret, callback_url),
+            daemon=True,
+        ).start()
+    except RuntimeError:
+        with state_lock:
+            state.update(
+                status=FAILED, message="Could not start the browser", error="",
+                session_id="", secret="", callback_url="", running=False,
+                cancel_requested=False, reset_requested=False,
+            )
     return redirect("./")
 
 
 @app.post("/cancel")
 def cancel() -> Any:
     with state_lock:
-        running = bool(state.get("running"))
-    if running:
-        _set_state(cancel_requested=True, message="Cancelling login", error="")
-    else:
-        _set_state(cancel_requested=False)
+        if state["running"]:
+            state.update(cancel_requested=True, message="Cancelling login", error="")
     return redirect("./")
 
 
 @app.post("/reset")
 def reset() -> Any:
-    _set_state(
-        status=WAITING_FOR_LOGIN,
-        message="Idle",
-        issue_token="",
-        cookies="",
-        error="",
-        running=False,
-        cancel_requested=False,
-    )
-    _clear_sensitive_state()
+    with state_lock:
+        if state["running"]:
+            # The existing capture still owns the browser until its cleanup ends.
+            state.update(
+                cancel_requested=True, reset_requested=True,
+                message="Closing the browser before starting over", error="",
+            )
+        else:
+            state.update(
+                status=WAITING_FOR_LOGIN, message="Idle", error="", session_id="",
+                secret="", callback_url="", issue_token="", cookies="",
+                cancel_requested=False, reset_requested=False,
+            )
     return redirect("./")
 
 
@@ -443,6 +452,7 @@ def status() -> Any:
             "status": state["status"],
             "message": state["message"],
             "running": state["running"],
+            "resetting": state["reset_requested"],
             "session_id": _mask_secret(state["session_id"]),
             "error": _mask_secret(state["error"]),
         }

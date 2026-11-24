@@ -256,3 +256,42 @@ def test_oauth_capture_uses_full_request_headers(monkeypatch) -> None:
         VALID_ISSUE_TOKEN,
         VALID_COOKIES,
     )
+
+
+def test_reset_cannot_start_a_second_browser_during_cleanup(monkeypatch) -> None:
+    """Only one worker owns the browser until cleanup has finished."""
+    monkeypatch.setattr(addon_main, "state", {**addon_main.state, "running": False})
+    monkeypatch.setattr(addon_main, "_extract_launch_values", lambda: (
+        "test-session", "test-secret", "http://ha.example.test:8123/api/nest_protect/auth_bridge/test-session",
+    ))
+    monkeypatch.setattr(addon_main, "_build_callback_request", lambda url: (url, {}))
+    started = []
+
+    class DelayedThread:
+        def __init__(self, *, target, args, daemon):
+            self.run = lambda: target(*args)
+
+        def start(self):
+            started.append(self.run)
+
+    monkeypatch.setattr(addon_main, "threading", SimpleNamespace(Thread=DelayedThread))
+    addon_main.start()
+    addon_main.start()
+    addon_main.reset()
+    addon_main.start()
+
+    assert len(started) == 1
+    assert addon_main.state["running"] is True
+    assert addon_main.state["cancel_requested"] is True
+
+    def fail_to_make_profile(*args, **kwargs):
+        raise OSError("test profile creation failed")
+
+    monkeypatch.setattr(addon_main.tempfile, "mkdtemp", fail_to_make_profile)
+    started[0]()
+    assert addon_main.state["running"] is False
+    assert addon_main.state["status"] == addon_main.WAITING_FOR_LOGIN
+    assert addon_main.state["secret"] == ""
+
+    addon_main.start()
+    assert len(started) == 2

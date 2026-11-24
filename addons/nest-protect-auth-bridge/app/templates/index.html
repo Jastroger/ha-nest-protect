@@ -18,6 +18,7 @@
       .status p { margin-block: 0.25rem; }
       iframe { display: block; box-sizing: border-box; width: 100%; height: 62vh; height: 62dvh;
         min-height: 19rem; border: 1px solid GrayText; border-radius: 0.7rem; margin-top: 1rem; }
+      iframe:fullscreen { width: 100%; height: 100%; border: 0; margin: 0; }
       [hidden] { display: none !important; }
     </style>
   </head>
@@ -30,9 +31,10 @@
         <form action="start" method="post" id="start-form">
           <button class="primary" id="start-button" type="submit" data-text="start">Start Login</button>
         </form>
-        <form action="cancel" method="post">
-          <button id="cancel-button" type="submit" data-text="cancel">Cancel</button>
+        <form action="reset" method="post">
+          <button id="reset-button" type="submit" data-text="reset">Start over</button>
         </form>
+        <button id="fullscreen-button" type="button" data-text="fullscreen" hidden>Full screen</button>
       </div>
 
       <section class="status" aria-live="polite">
@@ -40,6 +42,10 @@
         <p id="message"></p>
       </section>
 
+      <p id="verification" hidden>
+        <span data-text="verification"></span>
+        <a href="https://g.co/sc" target="_blank" rel="noopener noreferrer">g.co/sc</a>
+      </p>
       <iframe id="vnc-frame" title="Nest login browser" allow="clipboard-read; clipboard-write" hidden></iframe>
     </main>
 
@@ -47,7 +53,9 @@
       const copy = navigator.language.toLowerCase().startsWith('de') ? {
         title: 'Nest Protect verbinden',
         intro: 'Melde dich unten im Browser mit deinem Google-Konto an und kehre danach zu Home Assistant zurück.',
-        start: 'Anmeldung starten', cancel: 'Abbrechen', browser: 'Browser für die Nest-Anmeldung',
+        start: 'Anmeldung starten', reset: 'Von vorn anfangen', fullscreen: 'Vollbild', browser: 'Browser für die Nest-Anmeldung',
+        resetting: 'Der Browser wird geschlossen. Öffne danach einen neuen Anmeldelink in Home Assistant.',
+        verification: 'Wenn Google diesen Link anzeigt, öffne ihn direkt auf dem Handy und kehre nach der Bestätigung hierher zurück:',
         starting: 'Browser wird gestartet', waiting: 'Melde dich bei Google an.',
         posting: 'Home Assistant übernimmt die Anmeldung.',
         done: 'Anmeldung abgeschlossen. Wechsle zurück zu Home Assistant.',
@@ -57,7 +65,9 @@
       } : {
         title: 'Connect Nest Protect',
         intro: 'Sign in with your Google account in the browser below, then return to Home Assistant.',
-        start: 'Start Login', cancel: 'Cancel', browser: 'Nest login browser',
+        start: 'Start Login', reset: 'Start over', fullscreen: 'Full screen', browser: 'Nest login browser',
+        resetting: 'Closing the browser. Then open a new sign-in link in Home Assistant.',
+        verification: 'If Google shows this address, open it directly on your phone. Return here after verifying:',
         starting: 'Starting the browser', waiting: 'Sign in to your Google account.',
         posting: 'Finishing sign-in in Home Assistant.',
         done: 'Signed in. Return to Home Assistant.',
@@ -75,7 +85,6 @@
       const websockifyPath = basePath.replace(/^\//, '') + 'websockify';
 
       const params = new URLSearchParams(window.location.search);
-      const sessionId = params.get('session_id') || '';
       const hasLaunchValues = ['session_id', 'secret'].every((key) => {
         const value = params.get(key);
         return value && value.trim().length > 0;
@@ -94,25 +103,29 @@
           form.appendChild(input);
         });
 
-        const autoStartKey = 'nest_auth_bridge_auto_started_' + sessionId;
-        if (!sessionStorage.getItem(autoStartKey)) {
-          sessionStorage.setItem(autoStartKey, '1');
-          form.submit();
-        }
       }
+
+      const fullscreen = document.getElementById('fullscreen-button');
+      fullscreen.addEventListener('click', () => {
+        if (frame.requestFullscreen) frame.requestFullscreen().catch(() => {});
+      });
 
       function renderStatus(data) {
         const busy = data.running || data.status === 'browser_starting';
         document.getElementById('start-button').disabled = !hasLaunchValues || busy;
-        document.getElementById('cancel-button').disabled = !busy;
+        document.getElementById('reset-button').disabled = Boolean(data.resetting);
+        fullscreen.hidden = !busy || !frame.requestFullscreen;
+        document.getElementById('verification').hidden = !busy;
         frame.hidden = !busy;
         if (busy && !frame.getAttribute('src')) {
-          frame.src = 'novnc/vnc.html?autoconnect=true&resize=scale&view_only=false&show_dot=true&path=' +
+          frame.src = 'novnc/vnc.html?autoconnect=true&resize=scale&view_only=false&show_dot=false&path=' +
             encodeURIComponent(websockifyPath);
         }
         let status = copy.waiting;
         let hint = '';
-        if (data.status === 'done') {
+        if (data.resetting) {
+          status = copy.resetting;
+        } else if (data.status === 'done') {
           status = copy.done;
         } else if (data.status === 'failed' || data.status === 'timeout') {
           status = data.message || copy.retry;
