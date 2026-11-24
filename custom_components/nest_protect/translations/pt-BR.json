@@ -2,15 +2,15 @@
   "config": {
     "abort": {
       "already_configured": "A conta já está configurada",
-      "wrong_account": "The credentials belong to a different Nest account than the one configured. Sign in with the original account, or add the other account as a new entry."
+      "wrong_account": "Essas credenciais pertencem a outra conta Nest. Entre com a conta original ou adicione a outra conta separadamente."
     },
     "error": {
-      "cannot_connect": "Falhou ao se conectar",
-      "invalid_auth": "Autenticação inválida",
+      "cannot_connect": "Não foi possível acessar o Nest. Tente novamente em instantes.",
+      "invalid_auth": "O Nest recusou o login. Use a conta Google que gerencia seus detectores Nest Protect.",
       "unknown": "Erro inesperado",
-      "invalid_issue_token": "Invalid issue token URL. Must start with {accounts_url} and contain the issueToken action.",
-      "invalid_cookies": "Invalid cookies format. Ensure you copied the complete cookie header from the oauth2/iframe request.",
-      "invalid_code": "Invalid authentication code. Make sure you copied the complete code from the extension.",
+      "invalid_issue_token": "Copie a URL completa da solicitação ao Google que contém action=issueToken.",
+      "invalid_cookies": "Copie o cabeçalho Cookie completo da solicitação oauth2/iframe.",
+      "invalid_code": "Copie o código completo da extensão Nest Auth Helper.",
       "invalid_auth_bridge_url": "Informe um endereço http:// ou https:// válido, sem credenciais, parâmetros de consulta ou fragmento."
     },
     "step": {
@@ -18,42 +18,53 @@
         "data": {
           "account_type": "Tipo de conta"
         },
-        "description": "Select your Account Type. Most users will need to select Google Account. Field Test is only available for selected testers in the Google Field Test program."
+        "description": "Escolha uma conta Google comum, a menos que participe do programa Google Field Test.",
+        "title": "Escolha o tipo de conta Google"
       },
       "auth_method": {
-        "title": "Conectar sua conta Nest",
-        "description": "No celular, escolha a ponte de autenticação. No computador, você também pode usar a extensão do navegador.",
-        "data": {
-          "method": "Método de login"
+        "title": "Como você quer entrar?",
+        "menu_options": {
+          "auth_bridge": "Entrar com o Google",
+          "extension": "Extensão do Chrome",
+          "account_link": "Configuração manual"
+        },
+        "menu_option_descriptions": {
+          "auth_bridge": "Recomendado no celular. Usa a ponte de autenticação do Nest Protect.",
+          "extension": "No computador, copie o código de acesso do Nest Auth Helper.",
+          "account_link": "Copie a URL do Issue Token e os cookies nas ferramentas de desenvolvedor do navegador."
         }
       },
       "extension": {
-        "title": "Connect with Chrome Extension",
-        "description": "1. [Download the Nest Auth Helper extension]({extension_download_url})\n2. Unzip and load it in Chrome (chrome://extensions → Developer Mode → Load Unpacked)\n3. Sign in to [home.nest.com]({nest_url})\n4. Click the extension icon → click **Extract Credentials**\n5. Copy the code and paste it below\n\n⚠️ Do not share this code — it contains your session credentials.",
+        "title": "Entrar com a extensão do Chrome",
+        "description": "1. [Baixe a extensão Nest Auth Helper]({extension_download_url}).\n2. Extraia o arquivo ZIP. No Chrome, abra `chrome://extensions`, ative o **Modo do desenvolvedor** e selecione **Carregar sem compactação**.\n3. Entre em [home.nest.com]({nest_url}) com o Google.\n4. Abra a extensão e selecione **Extract Credentials**.\n5. Copie o código exibido e cole abaixo.\n\nTrate o código como uma senha. Ele contém seus dados de sessão.",
         "data": {
-          "auth_code": "Authentication Code"
+          "auth_code": "Código de acesso"
         },
         "data_description": {
-          "auth_code": "The code displayed by the Nest Auth Helper extension"
+          "auth_code": "Cole o código exibido pelo Nest Auth Helper."
         }
       },
       "account_link": {
-        "title": "Connect Your Nest Account (Manual)",
-        "description": "Follow these steps to get your credentials:\n\n1. Open a **regular** Chrome/Edge browser window (not Incognito — third-party cookies must be enabled)\n2. Open **Developer Tools** (F12) → **Network** tab → Check **Preserve Log**\n3. In the filter box, type `issueToken`\n4. Go to [home.nest.com]({nest_url}) and sign in with Google\n5. Click the `iframerpc` request and copy the full **Request URL**\n6. In the filter box, type `oauth2/iframe`, click the last request, and copy the entire **Cookie** header value\n\n⚠️ Do not log out of home.nest.com after copying credentials.",
+        "title": "Configurar o login manualmente",
+        "description": "1. Abra uma janela comum do Chrome ou Edge e permita cookies de terceiros para o Nest.\n2. Pressione F12, abra a aba **Rede** e marque **Preservar registro**.\n3. Acesse [home.nest.com]({nest_url}) e entre com o Google.\n4. Filtre por `issueToken`, abra a solicitação `iframerpc` e copie a URL completa da solicitação.\n5. Filtre por `oauth2/iframe`, abra a última solicitação e copie o valor completo do cabeçalho **Cookie**.\n\nMantenha a sessão aberta em home.nest.com para que ela continue válida.",
         "data": {
-          "issue_token": "Issue Token URL",
+          "issue_token": "URL do Issue Token",
           "cookies": "Cookies"
         },
         "data_description": {
-          "issue_token": "Full URL starting with {issue_token_prefix}...",
-          "cookies": "Complete cookie string from the oauth2/iframe request headers"
+          "issue_token": "Cole a URL completa que começa com {issue_token_prefix}.",
+          "cookies": "Cole o cabeçalho Cookie completo da solicitação oauth2/iframe."
         }
       },
       "auth_bridge": {
-        "title": "Escolher a ponte de autenticação",
-        "description": "Escolha Docker independente para o Home Assistant no Docker ou Complemento para a ponte instalada no Home Assistant OS.",
-        "data": {
-          "mode": "Tipo de ponte"
+        "title": "Como o Home Assistant está instalado?",
+        "menu_options": {
+          "auth_bridge_addon": "Home Assistant OS / Supervised",
+          "auth_bridge_standalone": "Home Assistant Container / Core"
+        },
+        "menu_option_descriptions": {
+          "auth_bridge_addon": "Entre pelo complemento Nest Protect no Home Assistant.",
+          "auth_bridge_standalone": "Entre pela ponte de autenticação em um contêiner Docker separado."
         }
       },
       "auth_bridge_standalone": {
@@ -72,22 +83,15 @@
       },
       "auth_bridge_finish": {
         "title": "Não foi possível conectar a conta Nest",
-        "description": "Selecione Continuar para escolher novamente um método de login."
+        "description": "Continue para escolher um método de login e tentar novamente."
       }
     }
   },
   "selector": {
-    "auth_method": {
+    "account_type": {
       "options": {
-        "bridge": "Ponte de autenticação (celular ou computador)",
-        "extension": "Extensão do navegador (computador)",
-        "manual": "Inserir credenciais manualmente"
-      }
-    },
-    "auth_bridge_mode": {
-      "options": {
-        "standalone": "Docker independente",
-        "addon": "Complemento do Home Assistant"
+        "production": "Conta Google",
+        "fieldtest": "Conta Google Field Test"
       }
     }
   }

@@ -318,6 +318,35 @@ def test_complete_auth_bridge_session_rejects_expired():
     )
 
 
+async def test_addon_menu_option_opens_ingress(hass):
+    """The Home Assistant app option opens the bridge through ingress."""
+    from urllib.parse import parse_qs, urlsplit
+
+    from homeassistant.data_entry_flow import FlowResultType
+    from homeassistant.setup import async_setup_component
+
+    from custom_components.nest_protect.const import DOMAIN
+
+    assert await async_setup_component(hass, "http", {})
+    flow = hass.config_entries.flow
+    result = await flow.async_init(DOMAIN, context={"source": "user"})
+    flow_id = result["flow_id"]
+    await flow.async_configure(flow_id, {"account_type": "production"})
+    await flow.async_configure(flow_id, {"next_step_id": "auth_bridge"})
+
+    result = await flow.async_configure(flow_id, {"next_step_id": "auth_bridge_addon"})
+    assert result["type"] is FlowResultType.EXTERNAL_STEP
+    assert result["step_id"] == "auth_bridge_login"
+
+    url = urlsplit(result["url"])
+    assert url.path == "/hassio/ingress/nest_protect_auth_bridge/"
+    query = parse_qs(url.query)
+    session_id = query["session_id"][0]
+    assert query["callback_url"] == [
+        f"http://supervisor/core/api/nest_protect/auth_bridge/{session_id}"
+    ]
+
+
 @pytest.mark.parametrize("foreground", [True, False])
 async def test_mobile_bridge_flow_uses_native_link_and_waits_for_callback(
     hass, hass_client_no_auth, foreground
@@ -336,13 +365,19 @@ async def test_mobile_bridge_flow_uses_native_link_and_waits_for_callback(
     flow = hass.config_entries.flow
     result = await flow.async_init(DOMAIN, context={"source": "user"})
     flow_id = result["flow_id"]
-    for selection in (
-        {"account_type": "production"},
-        {"method": "bridge"},
-        {"mode": "standalone"},
-    ):
-        result = await flow.async_configure(flow_id, selection)
-        assert result["type"] is FlowResultType.FORM
+    result = await flow.async_configure(flow_id, {"account_type": "production"})
+    assert result["type"] is FlowResultType.MENU
+    assert result["step_id"] == "auth_method"
+
+    result = await flow.async_configure(flow_id, {"next_step_id": "auth_bridge"})
+    assert result["type"] is FlowResultType.MENU
+    assert result["menu_options"] == ["auth_bridge_addon", "auth_bridge_standalone"]
+
+    result = await flow.async_configure(
+        flow_id, {"next_step_id": "auth_bridge_standalone"}
+    )
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "auth_bridge_standalone"
 
     result = await flow.async_configure(flow_id, {"bridge_url": "not-an-address"})
     assert result["errors"] == {"bridge_url": "invalid_auth_bridge_url"}

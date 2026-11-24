@@ -39,7 +39,6 @@ from .pynest.exceptions import BadCredentialsException, NestServiceException
 DESCRIPTION_PLACEHOLDERS = {
     "nest_url": "https://home.nest.com",
     "issue_token_prefix": "https://accounts.google.com/o/oauth2/iframerpc?action=issueToken",
-    "accounts_url": "https://accounts.google.com/",
     # Pinned to a specific release rather than "latest", which may resolve to a
     # pre-release that is incompatible with this version of the integration.
     "extension_download_url": "https://github.com/iMicknl/ha-nest-protect/releases/download/v0.5.0/nest-auth-helper.zip",
@@ -174,8 +173,11 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 {
                     vol.Required(
                         CONF_ACCOUNT_TYPE, default=self._default_account_type
-                    ): vol.In(
-                        {key: env.name for key, env in NEST_ENVIRONMENTS.items()}
+                    ): SelectSelector(
+                        SelectSelectorConfig(
+                            options=list(NEST_ENVIRONMENTS),
+                            translation_key=CONF_ACCOUNT_TYPE,
+                        )
                     ),
                 }
             ),
@@ -186,51 +188,26 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         """Handle auth method selection."""
-        if user_input:
-            if user_input["method"] == "bridge":
-                return await self.async_step_auth_bridge()
-            if user_input["method"] == "extension":
-                return await self.async_step_extension()
-            return await self.async_step_account_link()
-
-        return self.async_show_form(
+        return self.async_show_menu(
             step_id="auth_method",
-            data_schema=vol.Schema(
-                {
-                    vol.Required("method", default="bridge"): SelectSelector(
-                        SelectSelectorConfig(
-                            options=["bridge", "extension", "manual"],
-                            translation_key="auth_method",
-                        )
-                    ),
-                }
-            ),
-            description_placeholders=DESCRIPTION_PLACEHOLDERS,
+            menu_options=["auth_bridge", "extension", "account_link"],
         )
 
     async def async_step_auth_bridge(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         """Choose the Auth Bridge installation type."""
-        if user_input is not None:
-            if user_input["mode"] == "standalone":
-                return await self.async_step_auth_bridge_standalone()
-            return self._start_auth_bridge(
-                "/hassio/ingress/nest_protect_auth_bridge/", addon=True
-            )
-
-        return self.async_show_form(
+        return self.async_show_menu(
             step_id="auth_bridge",
-            data_schema=vol.Schema(
-                {
-                    vol.Required("mode", default="standalone"): SelectSelector(
-                        SelectSelectorConfig(
-                            options=["standalone", "addon"],
-                            translation_key="auth_bridge_mode",
-                        )
-                    )
-                }
-            ),
+            menu_options=["auth_bridge_addon", "auth_bridge_standalone"],
+        )
+
+    async def async_step_auth_bridge_addon(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Open the bridge installed through Home Assistant."""
+        return self._start_auth_bridge(
+            "/hassio/ingress/nest_protect_auth_bridge/", addon=True
         )
 
     async def async_step_auth_bridge_standalone(
