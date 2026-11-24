@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import os
+from pathlib import Path
 import shutil
 import subprocess
 import tempfile
@@ -237,12 +239,34 @@ def _wait_for_capture(
         time.sleep(poll_interval_seconds)
 
 
+def _prepare_chromium_profile(profile_dir: str) -> None:
+    """Allow third-party cookies only on the Nest top-level site."""
+    preferences = Path(profile_dir) / "Default" / "Preferences"
+    preferences.parent.mkdir()
+    preferences.write_text(
+        json.dumps({
+            "profile": {
+                "cookie_controls_mode": 1,  # Block third-party cookies by default.
+                "content_settings": {
+                    "exceptions": {
+                        "cookies": {
+                            "*,https://home.nest.com:443": {"setting": 1},
+                        },
+                    },
+                },
+            },
+        }),
+        encoding="utf-8",
+    )
+
+
 def _capture_flow(session_id: str, secret: str, callback_url: str) -> None:
     profile_dir = None
     context = None
 
     try:
         profile_dir = tempfile.mkdtemp(prefix="nest-auth-bridge-")
+        _prepare_chromium_profile(profile_dir)
         from playwright.sync_api import Error, sync_playwright
 
         timeout_seconds = int(

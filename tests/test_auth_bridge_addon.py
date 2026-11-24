@@ -295,3 +295,17 @@ def test_reset_cannot_start_a_second_browser_during_cleanup(monkeypatch) -> None
 
     addon_main.start()
     assert len(started) == 2
+
+
+
+def test_new_browser_profile_has_only_nest_cookie_exception(tmp_path) -> None:
+    """A fresh capture enables third-party cookies for Nest before Chromium starts."""
+    import json
+
+    addon_main._prepare_chromium_profile(str(tmp_path))
+    preferences = json.loads((tmp_path / "Default" / "Preferences").read_text())
+    profile = preferences["profile"]
+    assert profile["cookie_controls_mode"] == 1
+    assert profile["content_settings"]["exceptions"]["cookies"] == {
+        "*,https://home.nest.com:443": {"setting": 1},
+    }
