@@ -6,7 +6,7 @@ import base64
 import json
 import re
 from typing import Any
-from urllib.parse import urlencode, urlsplit
+from urllib.parse import quote, urlencode, urlsplit
 
 import voluptuous as vol
 from aiohttp import ClientError
@@ -18,6 +18,7 @@ from homeassistant.helpers.selector import SelectSelector, SelectSelectorConfig
 
 from .auth_bridge import (
     AuthBridgeSession,
+    cleanup_expired_auth_bridge_sessions,
     create_auth_bridge_session,
     get_auth_bridge_store,
     register_auth_bridge_view,
@@ -52,6 +53,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     _default_account_type: Environment = Environment.PRODUCTION
     _auth_bridge_session: AuthBridgeSession | None = None
+    _auth_bridge_url: str = ""
     _auth_bridge_error: str = "invalid_auth"
 
     @staticmethod
@@ -206,7 +208,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         """Open the bridge installed through Home Assistant."""
-        return self._start_auth_bridge(
+        return await self._start_auth_bridge(
             "/hassio/ingress/nest_protect_auth_bridge/", addon=True
         )
 
@@ -230,7 +232,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             except ValueError:
                 valid = False
             if valid:
-                return self._start_auth_bridge(f"{bridge_url}/")
+                return await self._start_auth_bridge(f"{bridge_url}/")
             errors["bridge_url"] = "invalid_auth_bridge_url"
 
         return self.async_show_form(
@@ -239,8 +241,8 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             errors=errors,
         )
 
-    def _start_auth_bridge(self, url: str, *, addon: bool = False) -> FlowResult:
-        """Open the bridge with Home Assistant's native external step."""
+    async def _start_auth_bridge(self, url: str, *, addon: bool = False) -> FlowResult:
+        """Prepare the sign-in link and keep the flow open until the user returns."""
         register_auth_bridge_view(self.hass)
         session = self._auth_bridge_session = create_auth_bridge_session(
             self.hass, flow_id=self.flow_id
@@ -250,19 +252,32 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             query["callback_url"] = (
                 f"http://supervisor/core/api/nest_protect/auth_bridge/{session.session_id}"
             )
-        return self.async_external_step(
-            step_id="auth_bridge_login", url=f"{url}?{urlencode(query)}"
-        )
+        self._auth_bridge_url = quote(f"{url}?{urlencode(query)}", safe=":/?&=%[]@")
+        return await self.async_step_auth_bridge_login()
 
     async def async_step_auth_bridge_login(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
-        """Advance only after the bridge has successfully called back."""
-        session = self._auth_bridge_session
-        if session is not None and session.result is not None:
-            return self.async_external_step_done(next_step_id="auth_bridge_finish")
-        assert self.cur_step is not None  # noqa: S101
-        return self.cur_step
+        """Finish sign-in when the user returns and submits the form."""
+        errors = {}
+        if user_input is not None:
+            session = self._auth_bridge_session
+            if session is not None and session.result is not None:
+                return await self.async_step_auth_bridge_finish()
+            cleanup_expired_auth_bridge_sessions(self.hass)
+            if session is None or session.session_id not in get_auth_bridge_store(
+                self.hass
+            ):
+                self._auth_bridge_session = None
+                return await self.async_step_auth_bridge()
+            errors["base"] = "auth_bridge_pending"
+
+        return self.async_show_form(
+            step_id="auth_bridge_login",
+            description_placeholders={"bridge_url": self._auth_bridge_url},
+            errors=errors,
+            last_step=True,
+        )
 
     async def async_step_auth_bridge_finish(
         self, user_input: dict[str, Any] | None = None

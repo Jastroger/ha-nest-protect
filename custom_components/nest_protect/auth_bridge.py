@@ -10,15 +10,13 @@ from typing import Literal
 from aiohttp import web
 from homeassistant.components.http import HomeAssistantView
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.data_entry_flow import FlowResultType, UnknownFlow
-from homeassistant.helpers.event import async_call_later
+from homeassistant.data_entry_flow import UnknownFlow
 
 from .const import CONF_COOKIES, CONF_ISSUE_TOKEN, DOMAIN
 
 AUTH_BRIDGE_DATA = "auth_bridge"
 AUTH_BRIDGE_VIEW_REGISTERED = f"{DOMAIN}_auth_bridge_view_registered"
 AUTH_BRIDGE_SESSION_TTL = dt.timedelta(minutes=10)
-AUTH_BRIDGE_FRONTEND_GRACE_SECONDS = 2
 GOOGLE_OAUTH_IFRAME_URL = "https://accounts.google.com/o/oauth2/iframerpc"
 MIN_COOKIE_HEADER_LENGTH = 101
 MIN_COOKIE_PAIRS = 3
@@ -187,38 +185,12 @@ class NestProtectAuthBridgeView(HomeAssistantView):
         session = get_auth_bridge_store(hass)[session_id]
         if session.flow_id is not None:
             try:
-                result = await hass.config_entries.flow.async_configure(
-                    session.flow_id, {}
-                )
+                hass.config_entries.flow.async_get(session.flow_id)
             except UnknownFlow:
                 get_auth_bridge_store(hass).pop(session_id, None)
                 return web.json_response({"error": "invalid_session"}, status=410)
-            if result["type"] is FlowResultType.EXTERNAL_STEP_DONE:
-                _schedule_auth_bridge_finish(hass, session)
 
         return web.json_response({"ok": True})
-
-
-@callback
-def _schedule_auth_bridge_finish(
-    hass: HomeAssistant, session: AuthBridgeSession
-) -> None:
-    """Finish the flow if the phone did not fetch the next step."""
-    flow_id = session.flow_id
-    if flow_id is None:
-        return
-
-    async def finish_if_pending(_now: dt.datetime) -> None:
-        # The normal frontend path consumes the credentials before doing network I/O.
-        if session.result is None:
-            return
-        try:
-            await hass.config_entries.flow.async_configure(flow_id)
-        except UnknownFlow:
-            get_auth_bridge_store(hass).pop(session.session_id, None)
-            session.result = None
-
-    async_call_later(hass, AUTH_BRIDGE_FRONTEND_GRACE_SECONDS, finish_if_pending)
 
 
 @callback

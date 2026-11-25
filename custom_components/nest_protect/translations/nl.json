@@ -11,7 +11,8 @@
       "invalid_cookies": "Kopieer de volledige Cookie-header van de oauth2/iframe-aanvraag.",
       "invalid_code": "Kopieer de volledige code uit de Nest Auth Helper-extensie.",
       "unknown": "Onverwachte fout",
-      "invalid_auth_bridge_url": "Voer een geldig http://- of https://-adres in zonder inloggegevens, queryparameters of fragment."
+      "invalid_auth_bridge_url": "Voer een geldig http://- of https://-adres in zonder inloggegevens, queryparameters of fragment.",
+      "auth_bridge_pending": "De bridge heeft de aanmelding nog niet doorgegeven. Rond de aanmelding af en probeer het opnieuw."
     },
     "step": {
       "user": {
@@ -29,7 +30,7 @@
           "account_link": "Handmatig instellen"
         },
         "menu_option_descriptions": {
-          "auth_bridge": "Aanbevolen op je telefoon. Gebruikt de Nest Protect Auth Bridge.",
+          "auth_bridge": "Gebruikt de Nest Protect Auth Bridge.",
           "extension": "Kopieer op een computer een aanmeldcode uit Nest Auth Helper.",
           "account_link": "Kopieer de Issue Token-URL en cookies via de ontwikkelaarstools van je browser."
         }
@@ -78,8 +79,9 @@
         }
       },
       "auth_bridge_login": {
-        "title": "Meld je aan bij Nest",
-        "description": "Open de Auth Bridge, kies Open Google sign-in en meld je aan met het Google-account van je Nest Protect-melders. Kom daarna hier terug."
+        "title": "Aanmelden bij Nest",
+        "description": "[Aanmeldpagina openen]({bridge_url})\n\nMeld je aan met Google en keer terug zodra de bridge de overdracht bevestigt.",
+        "submit": "Installatie afronden"
       },
       "auth_bridge_finish": {
         "title": "Het Nest-account kon niet worden verbonden",

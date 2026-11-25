@@ -16,7 +16,7 @@
           "account_link": "Manual setup"
         },
         "menu_option_descriptions": {
-          "auth_bridge": "Recommended on phones. Uses the Nest Protect Auth Bridge.",
+          "auth_bridge": "Uses the Nest Protect Auth Bridge.",
           "extension": "On a computer, copy a sign-in code from the Nest Auth Helper.",
           "account_link": "Copy the Issue Token URL and cookies using the browser developer tools."
         }
@@ -66,7 +66,8 @@
       },
       "auth_bridge_login": {
         "title": "Sign in to Nest",
-        "description": "Open the sign-in page, select **Open Google sign-in** and follow Google's instructions. Return here when the page confirms that your sign-in was sent."
+        "description": "[Open sign-in page]({bridge_url})\n\nSign in with Google, then return here once the bridge confirms that it sent your sign-in.",
+        "submit": "Finish setup"
       },
       "auth_bridge_finish": {
         "title": "Could not connect the Nest account",
@@ -80,7 +81,8 @@
       "invalid_cookies": "Copy the complete Cookie header from the oauth2/iframe request.",
       "invalid_code": "Copy the full code from the Nest Auth Helper extension.",
       "unknown": "[%key:common::config_flow::error::unknown%]",
-      "invalid_auth_bridge_url": "Enter a valid http:// or https:// address without credentials, query parameters or a fragment."
+      "invalid_auth_bridge_url": "Enter a valid http:// or https:// address without credentials, query parameters or a fragment.",
+      "auth_bridge_pending": "The bridge hasn’t sent your sign-in yet. Finish signing in, then try again."
     },
     "abort": {
       "already_configured": "[%key:common::config_flow::abort::already_configured_account%]",

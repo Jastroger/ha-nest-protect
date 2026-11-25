@@ -11,7 +11,8 @@
       "invalid_issue_token": "Copie a URL completa da solicitação ao Google que contém action=issueToken.",
       "invalid_cookies": "Copie o cabeçalho Cookie completo da solicitação oauth2/iframe.",
       "invalid_code": "Copie o código completo da extensão Nest Auth Helper.",
-      "invalid_auth_bridge_url": "Informe um endereço http:// ou https:// válido, sem credenciais, parâmetros de consulta ou fragmento."
+      "invalid_auth_bridge_url": "Informe um endereço http:// ou https:// válido, sem credenciais, parâmetros de consulta ou fragmento.",
+      "auth_bridge_pending": "A ponte ainda não enviou o login. Termine o login e tente novamente."
     },
     "step": {
       "user": {
@@ -29,7 +30,7 @@
           "account_link": "Configuração manual"
         },
         "menu_option_descriptions": {
-          "auth_bridge": "Recomendado no celular. Usa a ponte de autenticação do Nest Protect.",
+          "auth_bridge": "Usa a ponte de autenticação do Nest Protect.",
           "extension": "No computador, copie o código de acesso do Nest Auth Helper.",
           "account_link": "Copie a URL do Issue Token e os cookies nas ferramentas de desenvolvedor do navegador."
         }
@@ -79,7 +80,8 @@
       },
       "auth_bridge_login": {
         "title": "Entrar no Nest",
-        "description": "Abra a ponte, selecione Open Google sign-in e entre com a conta Google dos seus detectores Nest Protect. Depois, volte para cá."
+        "description": "[Abrir a página de login]({bridge_url})\n\nEntre com o Google e volte aqui assim que a ponte confirmar o envio.",
+        "submit": "Concluir a configuração"
       },
       "auth_bridge_finish": {
         "title": "Não foi possível conectar a conta Nest",

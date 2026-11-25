@@ -11,7 +11,8 @@
       "invalid_issue_token": "Kopiere die vollständige Google-Anfrage-URL mit action=issueToken.",
       "invalid_cookies": "Kopiere den vollständigen Cookie-Header aus der Anfrage oauth2/iframe.",
       "invalid_code": "Kopiere den vollständigen Code aus der Erweiterung Nest Auth Helper.",
-      "invalid_auth_bridge_url": "Gib eine gültige Adresse mit http:// oder https:// ein. Benutzername, Passwort, Abfrageparameter und Fragment gehören nicht in die Adresse."
+      "invalid_auth_bridge_url": "Gib eine gültige Adresse mit http:// oder https:// ein. Benutzername, Passwort, Abfrageparameter und Fragment gehören nicht in die Adresse.",
+      "auth_bridge_pending": "Die Anmeldung ist noch nicht bei Home Assistant angekommen. Beende die Anmeldung in der Bridge und versuche es erneut."
     },
     "step": {
       "user": {
@@ -29,7 +30,7 @@
           "account_link": "Manuell einrichten"
         },
         "menu_option_descriptions": {
-          "auth_bridge": "Fürs Handy empfohlen. Die Nest Protect Auth Bridge öffnet die Anmeldung.",
+          "auth_bridge": "Die Nest Protect Auth Bridge öffnet die Anmeldung.",
           "extension": "Kopiere am Computer einen Anmeldecode aus dem Nest Auth Helper.",
           "account_link": "Kopiere die Issue-Token-URL und die Cookies aus den Entwicklerwerkzeugen."
         }
@@ -79,7 +80,8 @@
       },
       "auth_bridge_login": {
         "title": "Bei Nest anmelden",
-        "description": "Öffne die Anmeldeseite und tippe auf **Google-Anmeldung öffnen**. Lass die Seite geöffnet, bis sie die Übergabe an Home Assistant bestätigt. Kehre dann hierher zurück."
+        "description": "[Anmeldeseite öffnen]({bridge_url})\n\nMelde dich mit Google an. Sobald die Bridge die Übergabe bestätigt, kehre hierher zurück und schließe die Einrichtung ab.",
+        "submit": "Einrichtung abschließen"
       },
       "auth_bridge_finish": {
         "title": "Nest-Konto konnte nicht verbunden werden",

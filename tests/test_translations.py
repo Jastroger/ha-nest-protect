@@ -29,6 +29,8 @@ async def test_setup_translations(hass: HomeAssistant, language: str) -> None:
         "step.auth_bridge_standalone.data.bridge_url",
         "step.auth_bridge_standalone.data_description.bridge_url",
         "step.auth_bridge_login.description",
+        "step.auth_bridge_login.submit",
+        "error.auth_bridge_pending",
         "step.auth_bridge_finish.title",
         "step.auth_bridge_finish.description",
         "step.extension.description",

@@ -1,10 +1,8 @@
 """Tests for auth bridge session helpers."""
 
-import datetime
+import datetime as dt
 import json
 from types import SimpleNamespace
-
-import pytest
 
 from custom_components.nest_protect.auth_bridge import (
     NestProtectAuthBridgeView,
@@ -128,7 +126,7 @@ def test_complete_auth_bridge_session_is_one_time_use():
 def test_auth_bridge_session_expiry_cleanup():
     """Test expired auth bridge sessions are cleaned up."""
     hass = SimpleNamespace(data={})
-    session = create_auth_bridge_session(hass, ttl=datetime.timedelta(seconds=-1))
+    session = create_auth_bridge_session(hass, ttl=dt.timedelta(seconds=-1))
 
     cleanup_expired_auth_bridge_sessions(hass)
     assert session.session_id not in get_auth_bridge_store(hass)
@@ -269,7 +267,7 @@ async def test_auth_bridge_callback_second_post_rejected():
 async def test_auth_bridge_callback_rejects_expired_session():
     """Test auth bridge callback rejects expired sessions."""
     hass = SimpleNamespace(data={})
-    session = create_auth_bridge_session(hass, ttl=datetime.timedelta(seconds=-1))
+    session = create_auth_bridge_session(hass, ttl=dt.timedelta(seconds=-1))
     response = await NestProtectAuthBridgeView().post(
         MockRequest(
             hass,
@@ -302,7 +300,7 @@ async def test_auth_bridge_callback_invalid_json():
 def test_complete_auth_bridge_session_rejects_expired():
     """Test expired session completion is rejected."""
     hass = SimpleNamespace(data={})
-    session = create_auth_bridge_session(hass, ttl=datetime.timedelta(seconds=-1))
+    session = create_auth_bridge_session(hass, ttl=dt.timedelta(seconds=-1))
 
     assert (
         complete_auth_bridge_session(
@@ -335,10 +333,10 @@ async def test_addon_menu_option_opens_ingress(hass):
     await flow.async_configure(flow_id, {"next_step_id": "auth_bridge"})
 
     result = await flow.async_configure(flow_id, {"next_step_id": "auth_bridge_addon"})
-    assert result["type"] is FlowResultType.EXTERNAL_STEP
+    assert result["type"] is FlowResultType.FORM
     assert result["step_id"] == "auth_bridge_login"
 
-    url = urlsplit(result["url"])
+    url = urlsplit(result["description_placeholders"]["bridge_url"])
     assert url.path == "/hassio/ingress/nest_protect_auth_bridge/"
     query = parse_qs(url.query)
     session_id = query["session_id"][0]
@@ -347,11 +345,8 @@ async def test_addon_menu_option_opens_ingress(hass):
     ]
 
 
-@pytest.mark.parametrize("foreground", [True, False])
-async def test_mobile_bridge_flow_uses_native_link_and_waits_for_callback(
-    hass, hass_client_no_auth, foreground
-):
-    """A clean install opens the bridge and advances only after a valid callback."""
+async def test_mobile_bridge_flow_finishes_when_user_returns(hass, hass_client_no_auth):
+    """The callback leaves the form open so the returning app can finish setup."""
     from unittest.mock import patch
     from urllib.parse import parse_qs, urlsplit
 
@@ -384,8 +379,8 @@ async def test_mobile_bridge_flow_uses_native_link_and_waits_for_callback(
     result = await flow.async_configure(
         flow_id, {"bridge_url": "http://bridge.example.test:8099/"}
     )
-    assert result["type"] is FlowResultType.EXTERNAL_STEP
-    url = urlsplit(result["url"])
+    assert result["type"] is FlowResultType.FORM
+    url = urlsplit(result["description_placeholders"]["bridge_url"])
     assert (url.scheme, url.netloc, url.path) == (
         "http",
         "bridge.example.test:8099",
@@ -400,29 +395,26 @@ async def test_mobile_bridge_flow_uses_native_link_and_waits_for_callback(
     }
     response = await client.post(callback, json={**payload, "secret": "wrong"})
     assert response.status == 403
-    pending = await flow.async_configure(flow_id)
-    assert pending["type"] is FlowResultType.EXTERNAL_STEP
-    assert pending["url"] == result["url"]
+    pending = await flow.async_configure(flow_id, {})
+    assert pending["type"] is FlowResultType.FORM
+    assert pending["errors"] == {"base": "auth_bridge_pending"}
+    assert pending["description_placeholders"] == result["description_placeholders"]
 
-    with (
-        patch("custom_components.nest_protect.auth_bridge.async_call_later") as timer,
-        patch.object(
-            ConfigFlow,
-            "async_validate_input",
-            return_value=[VALID_ISSUE_TOKEN, VALID_COOKIES, "nest@example.test"],
-        ) as validate,
-    ):
+    with patch.object(
+        ConfigFlow,
+        "async_validate_input",
+        return_value=[VALID_ISSUE_TOKEN, VALID_COOKIES, "nest@example.test"],
+    ) as validate:
         response = await client.post(
             callback, json={**payload, "secret": launch["secret"][0]}
         )
         assert response.status == 200
-        timer.assert_called_once()
-        finish_if_pending = timer.call_args.args[2]
-        if foreground:
-            result = await flow.async_configure(flow_id)
-            assert result["type"] is FlowResultType.CREATE_ENTRY
+        assert not hass.config_entries.async_entries(DOMAIN)
+        assert (await flow.async_configure(flow_id))["step_id"] == "auth_bridge_login"
+        validate.assert_not_awaited()
 
-        await finish_if_pending(datetime.datetime.now(tz=datetime.UTC))
+        result = await flow.async_configure(flow_id, {})
+        assert result["type"] is FlowResultType.CREATE_ENTRY
         validate.assert_awaited_once()
         entry = hass.config_entries.async_entries(DOMAIN)[0]
         assert entry.data[CONF_COOKIES] == VALID_COOKIES
